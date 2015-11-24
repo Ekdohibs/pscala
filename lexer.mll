@@ -40,34 +40,36 @@ let mot = ['a'-'z'] ( alpha | digits | '_' )*
 let whitespace =  [ ' ' '\t' ]
 
 rule token = parse
-  | whitespace			{ token lexbuf }
-  | "//"				{ comment_line lexbuf }
-  | "(*"				{ comment_base lexbuf }
-  | "\n"				{ newline lexbuf ; token lexbuf }
-  | "=="				{ DBLEQUAL }
-  | "="					{ EQUAL }
-  | "||"				{ OR }
-  | "&&"				{ AND }
-  | "!="				{ UNEQ }
-  | ">="				{ GEQ }
-  | "<="				{ LEQ }
-  | ">"					{ GR }
-  | "<"					{ LW }
-  | "+"					{ PLUS }
-  | "-"					{ MINUS }
-  | "*"					{ TIME }
-  | "/"					{ DIV }
-  | "%"					{ MOD }
-  | "."					{ DOT }
-  | eof					{ EOF }
-  | "("					{ LEFTPAR }
-  | ")"					{ RIGHTPAR }
-  | "["					{ LEFTCROCH }
-  | "]"					{ RIGHTCROCH }
-  | '"' car* as s '"'	{ STRING s }
-  | '\'' car as s '\''	{ CHAR s }
-  | mot	as s			{ try Hashtbl.find keywords s with Not_found -> VAR s }
-  | digits+ as s		{ INT (int_of_string s) }
+  | whitespace					{ token lexbuf }
+  | "//"						{ comment_line lexbuf }
+  | "(*"						{ comment_base lexbuf }
+  | "\n"						{ newline lexbuf ; token lexbuf }
+  | "=="						{ DBLEQUAL }
+  | "="							{ EQUAL }
+  | "||"						{ OR }
+  | "&&"						{ AND }
+  | "!="						{ UNEQ }
+  | ">="						{ GEQ }
+  | "<="						{ LEQ }
+  | ">"							{ GR }
+  | "<"							{ LW }
+  | "+"							{ PLUS }
+  | "-"							{ MINUS }
+  | "*"							{ TIME }
+  | "/"							{ DIV }
+  | "%"							{ MOD }
+  | "."							{ DOT }
+  | eof							{ EOF }
+  | "("							{ LEFTPAR }
+  | ")"							{ RIGHTPAR }
+  | "["							{ LEFTCROCH }
+  | "]"							{ RIGHTCROCH }
+  | '"' car* as s '"'			{ STRING s }
+  | '\'' car as s '\''			{ CHAR s }
+  | mot	as s					{ try Hashtbl.find keywords s
+     with Not_found -> VAR s }
+  | digits+ '.' digits* as s	{ FLOAT (float_of_string s) }
+  | digits+ as s				{ INT (int_of_string s) }
 
 and comment_line = parse
   | "\n"	{ token }
