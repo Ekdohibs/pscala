@@ -1,4 +1,4 @@
-CMO=lexer.cmo parser.cmo interp.cmo main.cmo
+CMO=lexer.cmo parser.cmo main.cmo
 GENERATED = lexer.ml parser.ml parser.mli
 FLAGS=-annot -g
 
