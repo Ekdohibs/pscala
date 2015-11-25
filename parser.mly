@@ -1,7 +1,7 @@
 {
-
   open Ast
-
+  let w x = { location = Lexing.position; desc = x }
+  let sugar x = { location = Lexing.dummy_pos; desc = x }
 }
 
 %token CLASS EQ EXTENDS MAIN NE NEW NULL OBJECT OVERRIDE THIS VAL VAR
@@ -54,12 +54,20 @@ int_classe:
   		le = option(LEFTPAR ; separated_list(COMMA, expr) ; RIGHTPAR)
 
 decl:
-  | v = VAR
-  | m = methode
+  | v = var { w (desc = Dvar v) }
+  | m = methode { w (Dmethod m) }
 
 var:
   | VAR ; i = IDENT ; t = option( COLON ; type_scala ) ; EQUAL ; e = expr
+          { w { var_mutable = true;
+					   var_name = i;
+					   var_type = t;
+					   var_expr = e } }
   | VAL ; i = IDENT ; t = option( COLON ; type_scala ) ; EQUAL ; e = expr
+		  { w { var_mutable = false;
+					   var_name = i;
+					   var_type = t;
+					   var_expr = e } }
 
 methode:
   | b = boption(OVERRIDE) ; DEF ; i = IDENT ; 
@@ -74,43 +82,67 @@ methode:
 
 parametre:
   | i = IDENT ; COLON ; t = type_scala
+          { w { par_name = i;
+				par_type = t } }
 
 param_type:
-  | i = IDENT
-  | i = IDENT ; SUBTYPE ; t = type_scala
+  | i = IDENT { w { param_type_name = i;
+					param_type_constraint = Any }
+			  }
+  | i = IDENT ; SUBTYPE ; t = type_scala {
+          { w { param_type_name = i;
+				param_type_constraint = Subtype t }
+		  }
   | i = IDENT ; SUPERTYPE ; t = type_scala
+          { w { param_type_name = i;
+				param_type_constraint = Supertype t }
+		  }
 
 param_type_classe:
-  | PLUS ; param_type
-  | MINUS ; param_type
-  | p = param_type
+  | PLUS ; p = param_type { w { param_type = p;
+								param_variance = Covariant
+							  } }
+  | MINUS ; p = param_type { w { param_type = p;
+								 param_variance = Contravariant
+							   } }
+  | p = param_type { w { param_type = p;
+						 param_variance = Invariant
+					   } }
 
 type_scala:
-  | i = IDENT ; a = arguments_type
+  | i = IDENT ; a = arguments_type {
+          { w { type_name = i; arguments_type = a } }
 
 arguments_type:
-  | 
-  | LEFTSQBRACK ; l = separated_nonempty_list(COMMA, type_scala) ; RIGHTSQBRACK
+  | { [] }
+  | LEFTSQBRACK ; l = separated_nonempty_list(COMMA, type_scala) ; RIGHTSQBRACK { l }
 
 classe_Main:
-  | OBJECT ; MAIN ; LEFTBRACK ; l = separated_list(SEMICOLON, decl) ; RIGHTBRACK
+  | OBJECT ; MAIN ; LEFTBRACK ; l = separated_list(SEMICOLON, decl) ; RIGHTBRACK { l }
 
 expr:
-  | i = INT
-  | s = STRING
-  | b = BOOL
-  | LEFTPAR ; RIGHTPAR
-  | THIS
-  | NULL
-  | LEFTPAR ; e = expr ; RIGHTPAR
-  | a = acces
-  | a = acces ; EQUAL ; e = expr
+  | i = INT { w (Eint i) }
+  | s = STRING { w (Estring s) }
+  | b = BOOL { w (Ebool b) }
+  | LEFTPAR ; RIGHTPAR { w Eunit }
+  | THIS { w Ethis }
+  | NULL { w Enull }
+  | LEFTPAR ; e = expr ; RIGHTPAR { e }
+  | a = acces { w (Eaccess a) }
+  | a = acces ; EQUAL ; e = expr { w (Eassign (a, e)) }
   | a = acces ; arg = arguments_type ; LEFTPAR ;
-  		l = separated_list(COMMA, expr) ; RIGHTPAR
+  	    l = separated_list(COMMA, expr) ; RIGHTPAR
+			{ let acc = match a.desc with
+				(* Pas d'objet explicite *)
+				| Avar x -> { location = a.location;
+							  desc = Afield (sugar Ethis, x) }
+				| _ -> a
+			  in w (Ecall (acc, arg, l)) }
   | NEW ; i = IDENT ; arg = arguments_type ; LEFTPAR ;
-  		l = separated_list(COMMA, expr) ; RIGHTPAR
-  | BANG ; e = expr
-  | MINUS ; e = expr
+  	    l = separated_list(COMMA, expr) ; RIGHTPAR
+		    { w (Enew (i, arg, l)) }
+  | BANG ; e = expr { w (Eunary (Unot, e)) }
+  | MINUS ; e = expr { w (Eunary (Uminus, e)) }
   | e1 = expr ; PLUS ; e2 = expr
   | e1 = expr ; MINUS ; e2 = expr
   | e1 = expr ; TIME ; e2 = expr
@@ -127,11 +159,16 @@ expr:
   | e1 = expr ; LEQ ; e2 = expr
   | e1 = expr ; GEQ ; e2 = expr
   | IF ; LEFTPAR ; e1 = expr ; RIGHTPAR ; e2 = expr
+        { w (Eif (e1, e2, sugar Eunit)) }
   | IF ; LEFTPAR ; e1 = expr ; RIGHTPAR ; e2 = expr ; ELSE ; e3 = expr
+		{ w (Eif (e1, e2, e3)) }
   | WHILE ; LEFTPAR ; e1 = expr ; RIGHTPAR ; e2 = expr
+		{ w (Ewhile (e1, e2)) }
   | RETURN ; e = option(expr)
+		{ w (Ereturn e) }
   | PRINT ; LEFTPAR ; e = expr ; RIGHTPAR
-  | b = bloc
+		{ w (Eprint e) }
+  | b = bloc { w (Ebloc b) }
 
 bloc:
   | LEFTBRACK ; l = separated_list(SEMICOLON, int_bloc) ; RIGHTBRACK
@@ -141,5 +178,5 @@ int_bloc:
   | e = expr
 
 acces:
-  | i = IDENT
-  | e = expr ; DOT ; i = IDENT
+  | i = IDENT { w (Avar i) }
+  | e = expr ; DOT ; i = IDENT { w (Afield (e, i)) }
