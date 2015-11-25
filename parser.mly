@@ -71,14 +71,25 @@ var:
 
 methode:
   | b = boption(OVERRIDE) ; DEF ; i = IDENT ; 
-  		lpt = option(RIGHTSQBRACK ; nonempty_separated_list(COMMA, param_type) ;
-		LEFTSQBRACK) ;
-		LEFTPAR ; lp = separated_list(COMMA, parametre) ; RIGHTPAR ; blc = bloc
+  		lpt = square_list(param_type) ;	LEFTPAR ;
+		lp = separated_list(COMMA, parametre) ; RIGHTPAR ; blc = bloc
+		    { w { method_override = b ;
+			      method_name = i ;
+				  method_param_types = lpt ;
+				  method_params = lp ;
+				  method_type = 
+					  sugar { type_name = "Unit" ; arguments_type = [] } ;
+				  method_body = { position = blc.location ; desc = Ebloc blc } }
   | b = boption(OVERRIDE) ; DEF ; i = IDENT ;
-  		lpt = option(RIGHTSQBRACK ; nonempty_separated_list(COMMA, param_type) ;
-		LEFTSQBARCK) ;
+  		lpt = square_list(param_type) ;
 		LEFTPAR ; lp = separated_list(COMMA, parametre) ; RIGHTPAR ;
 		COLON ; t = type_scala ; EQUAL ; e = expr
+		   { w ( { method_override = b ;
+		           method_name = i ;
+				   method_param_types = lpt ;
+				   method_params = lp ;
+				   method_type = t ;
+				   method_body = e } ) }
 
 parametre:
   | i = IDENT ; COLON ; t = type_scala
@@ -115,10 +126,12 @@ type_scala:
 
 arguments_type:
   | { [] }
-  | LEFTSQBRACK ; l = separated_nonempty_list(COMMA, type_scala) ; RIGHTSQBRACK { l }
+  | LEFTSQBRACK ; l = separated_nonempty_list(COMMA, type_scala) ; RIGHTSQBRACK
+      { l }
 
 classe_Main:
-  | OBJECT ; MAIN ; LEFTBRACK ; l = separated_list(SEMICOLON, decl) ; RIGHTBRACK { l }
+  | OBJECT ; MAIN ; LEFTBRACK ; l = separated_list(SEMICOLON, decl) ; RIGHTBRACK 
+      { l }
 
 expr:
   | i = INT { w (Eint i) }
@@ -172,10 +185,11 @@ expr:
 
 bloc:
   | LEFTBRACK ; l = separated_list(SEMICOLON, int_bloc) ; RIGHTBRACK
+  		{ w (l) }
 
 int_bloc:
-  | v = var
-  | e = expr
+  | v = var   { w (Vvar v) }
+  | e = expr  { w (Vexpr e) }
 
 acces:
   | i = IDENT { w (Avar i) }
