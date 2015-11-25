@@ -50,19 +50,19 @@ classe:
 
 int_classe:
   | EXTENDS ; t = type_scala ; 
-  		le = option(LEFTPAR ; separated_list(COMMA, expr) ; RIGHTPAR)
+  		le = option(delimited(LEFTPAR, separated_list(COMMA, expr), RIGHTPAR))
 
 decl:
   | v = var { w (desc = Dvar v) }
   | m = methode { w (Dmethod m) }
 
 var:
-  | VAR ; i = IDENT ; t = option( COLON ; type_scala ) ; EQUAL ; e = expr
+  | VAR ; i = IDENT ; t = option(preceded(COLON, type_scala) ; EQUAL ; e = expr
           { w { var_mutable = true;
 					   var_name = i;
 					   var_type = t;
 					   var_expr = e } }
-  | VAL ; i = IDENT ; t = option( COLON ; type_scala ) ; EQUAL ; e = expr
+  | VAL ; i = IDENT ; t = option(preceded(COLON, type_scala) ; EQUAL ; e = expr
 		  { w { var_mutable = false;
 					   var_name = i;
 					   var_type = t;
