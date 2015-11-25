@@ -1,6 +1,6 @@
 
 
-type 'a desc = { location : Lexing.position;
+type 'a desc = { location : Lexing.position * Lexing.position;
 				 desc : 'a
 			   }
 and p_variance = Invariant | Covariant | Contravariant
@@ -13,7 +13,7 @@ and p_param = { par_name : p_ident;
 			  }
 and p_param_type_constraint = Any | Subtype of p_type desc | Supertype of p_type desc
 and p_param_type = { param_type_name : p_ident;
-					 param_type_constaint : p_param_type_constraint
+					 param_type_constraint : p_param_type_constraint
 				   }
 and p_param_type_class = { param_type : p_param_type desc;
 						   param_variance : p_variance
@@ -37,7 +37,7 @@ and p_expr =
   | Eaccess of p_access desc
   | Eassign of p_access desc * p_expr desc
   | Ecall of p_access desc * p_type desc list * p_expr desc list
-  | Enew of p_ident desc * p_type desc list * p_expr desc list
+  | Enew of p_ident * p_type desc list * p_expr desc list
   | Eunary of unary_op * p_expr desc
   | Ebinary of binary_op * p_expr desc * p_expr desc
   | Eif of p_expr desc * p_expr desc * p_expr desc

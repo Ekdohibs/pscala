@@ -1,0 +1,12 @@
+*~
+*.swp
+*.cmi
+*.cmo
+*.annot
+parser.automaton
+parser.conflicts
+parser.ml
+parser.mli
+lexer.ml
+lexer.mli
+.depend

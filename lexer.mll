@@ -1,5 +1,6 @@
 {
-
+  open Parser
+  open Lexing
 	exception Lexing_error of string
 
 	let kw =
@@ -30,13 +31,13 @@
 	let newline lexbuf =
 	  let pos = lexbuf.lex_curr_p in
 	  lexbuf.lex_curr_p <- 
-	    { pos with pos_lnum = pos.po_lnum + 1; pos_bol = pos.pos_cnum }
+	    { pos with pos_lnum = pos.pos_lnum + 1; pos_bol = pos.pos_cnum }
 
 }
 
 let digits = ['0'-'9']
 let alpha = ['a'-'z'] | ['A'-'Z']
-let car = [ '\\' '\n' '\t' ' ' '!' ] | [ '#'-'['] | [ ']'-'~' ]
+let car = "\\\\" | "\\\"" | "\\n" | "\\t"  | [' ' '!' ] | [ '#'-'['] | [ ']'-'~' ]
 let mot = ['a'-'z'] ( alpha | digits | '_' )*
 let whitespace =  [ ' ' '\t' ]
 
@@ -69,8 +70,7 @@ rule token = parse
   | "]"							{ RIGHTSQBRACK }
   | "{"							{ LEFTBRACK }
   | "}"							{ RIGHTBRACK }
-  | '"' car* as s '"'			{ STRING s }
-  | '\'' car as s '\''			{ CHAR s }
+  | "\"" car* as s "\"" 		{ STRING s }
   | ":"							{ COLON }
   | ";"							{ SEMICOLON }
   | ","							{ COMMA }
@@ -80,7 +80,7 @@ rule token = parse
   | digits+ as s				{ INT (int_of_string s) }
 
 and comment_line = parse
-  | "\n"	{ token }
+  | "\n"	{ newline lexbuf; token lexbuf }
   | _		{ comment_line lexbuf }
   | eof		{ EOF }
 
@@ -88,3 +88,4 @@ and comment_base = parse
   | "*)"			{ token lexbuf }
   | _				{ comment_base lexbuf }
   | eof				{ raise (Lexing_error "commentaire non terminé") }
+
