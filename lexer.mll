@@ -8,8 +8,9 @@
 		  "else", ELSE ;
 		  "eq", EQ ;
 		  "extends", EXTENDS ;
-		  "false", FALSE ;
+		  "false", BOOL false ;
 		  "if", IF ;
+		  "Main", MAIN ;
 		  "ne", NE ;
 		  "new", NEW ;
 		  "null", NULL ;
@@ -18,7 +19,7 @@
 		  "print", PRINT ;
 		  "return", RETURN ;
 		  "this", THIS ;
-		  "true", TRUE ;
+		  "true", BOOL true ;
 		  "val", VAL ;
 		  "var", VAR ;
 		  "while", WHILE ]
@@ -51,6 +52,8 @@ rule token = parse
   | "!="						{ UNEQ }
   | ">="						{ GEQ }
   | "<="						{ LEQ }
+  | "<:"						{ SUBTYPE }
+  | ">:"						{ SUPERTYPE }
   | ">"							{ GR }
   | "<"							{ LW }
   | "+"							{ PLUS }
@@ -62,12 +65,18 @@ rule token = parse
   | eof							{ EOF }
   | "("							{ LEFTPAR }
   | ")"							{ RIGHTPAR }
-  | "["							{ LEFTCROCH }
-  | "]"							{ RIGHTCROCH }
+  | "["							{ LEFTSQBRACK }
+  | "]"							{ RIGHTSQBRACK }
+  | "{"							{ LEFTBRACK }
+  | "}"							{ RIGHTBRACK }
   | '"' car* as s '"'			{ STRING s }
   | '\'' car as s '\''			{ CHAR s }
+  | ":"							{ COLON }
+  | ";"							{ SEMICOLON }
+  | ","							{ COMMA }
+  | "!"							{ BANG }
   | mot	as s					{ try Hashtbl.find keywords s
-     with Not_found -> VAR s }
+     with Not_found -> IDENT s }
   | digits+ '.' digits* as s	{ FLOAT (float_of_string s) }
   | digits+ as s				{ INT (int_of_string s) }
 
