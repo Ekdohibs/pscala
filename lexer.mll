@@ -77,7 +77,6 @@ rule token = parse
   | "!"							{ BANG }
   | mot	as s					{ try Hashtbl.find keywords s
      with Not_found -> IDENT s }
-  | digits+ '.' digits* as s	{ FLOAT (float_of_string s) }
   | digits+ as s				{ INT (int_of_string s) }
 
 and comment_line = parse

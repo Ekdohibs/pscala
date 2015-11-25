@@ -4,7 +4,7 @@
 
 }
 
-%token CLASS EQ EXTENDS NE NEW NULL OBJECT OVERRIDE THIS VAL VAR
+%token CLASS EQ EXTENDS MAIN NE NEW NULL OBJECT OVERRIDE THIS VAL VAR
 %token SUBTYPE SUPERTYPE
 %token DEF EQUAL PRINT RETURN
 %token IF ELSE WHILE
@@ -18,7 +18,6 @@
 %token <string> STRING
 %token <char> CHAR
 %token <bool> BOOL
-%token <float> FLOAT
 %token <string> IDENT
 
 %nonassoc IF
@@ -59,6 +58,7 @@ var:
   | VAL ; i = IDENT ; t = option( COLON ; type_scala ) ; EQUAL ; e = expr
 
 methode:
+(* à compléter *)
 
 parametre:
   | i = IDENT ; COLON ; t = type_scala
@@ -80,4 +80,38 @@ arguments_type:
   | 
   | LEFTSQBRACK ; l = separated_nonempty_list(COMMA, type_scala) ; RIGHTSQBRACK
 
+classe_Main:
+  | OBJECT ; MAIN ; LEFTBRACK ; l = separated_list(SEMICOLON, decl) ; RIGHTBRACK
 
+expr:
+  | i = INT
+  | s = STRING
+  | b = BOOL
+  | LEFTPAR ; RIGHTPAR
+  | THIS
+  | NULL
+  | LEFTPAR ; e = expr ; RIGHTPAR
+  | a = acces
+  | a = acces ; EQUAL ; e = expr
+  | a = acces ; arg = arguments_type ; LEFTPAR ;
+  		l = separated_list(COMMA, expr) ; RIGHTPAR
+  | NEW ; i = IDENT ; arg = arguments_type ; LEFTPAR ;
+  		l = separated_list(COMMA, expr) ; RIGHTPAR
+  | BANG ; e = expr
+  | MINUS ; e = expr
+  | e1 = expr ; op = operateur ; e2 = expr
+  | IF ; LEFTPAR ; e1 = expr ; RIGHTPAR ; e2 = expr
+  | IF ; LEFTPAR ; e1 = expr ; RIGHTPAR ; e2 = expr ; ELSE ; e3 = expr
+  | WHILE ; LEFTPAR ; e1 = expr ; RIGHTPAR ; e2 = expr
+  | RETURN ; e = option(expr)
+  | PRINT ; LEFTPAR ; e = expr ; RIGHTPAR
+  | b = bloc
+(* à compléter *)
+
+bloc:
+  | LEFTBRACK ; v = var ; RIGHTBRACK
+  | LEFTBRACK ; l = separated_list(SEMICOLON, expr) ; RIGHTBRACK
+
+acces:
+  | i = IDENT
+  | e = expr ; DOT ; i = IDENT
