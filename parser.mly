@@ -39,21 +39,28 @@
 %%
 
 prog:
-  e = classe* ; classe_Main ; EOF
-;
+  e = classe* ; m = classe_Main ; EOF { { prog_classes = e;
+										  prog_main = m } }
 
 classe:
   | CLASS ; i = IDENT ; lptc = square_list(param_type_classe) ;
-  		lp = option(LEFTPAR ; separated_list(COMMA, parametre) ; RIGHTPAR) ;
+  		lp = option(delimited(LEFTPAR, separated_list(COMMA, parametre) , RIGHTPAR)) ;
 		ic = option(int_class) ; LEFTBRACK ; 
 		ld = separated_list(SEMICOLON, decl) ; RIGHTBRACK
+			 { w { class_name = i;
+				   class_type_params = lptc;
+				   class_params = lp;
+				   class_decls = ld;
+				   class_extends = ic
+				 } }
 
 int_classe:
   | EXTENDS ; t = type_scala ; 
   		le = option(delimited(LEFTPAR, separated_list(COMMA, expr), RIGHTPAR))
+		 { (t, le) }
 
 decl:
-  | v = var { w (desc = Dvar v) }
+  | v = var { w (Dvar v) }
   | m = methode { w (Dmethod m) }
 
 var:
