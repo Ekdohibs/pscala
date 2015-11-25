@@ -43,11 +43,15 @@ prog:
 ;
 
 classe:
-  | CLASS ; v = VAR ; 
-  | c = classe ; LEFTSQBRACK; p = mult_param_type_class ; RIGHTSQBRACK
-  | c = classe ; LEFTPAR ; p = mult_param ; RIGHTPAR
-(* à compléter *)
+  | CLASS ; i = IDENT ; lptc = option(LEFTSQBRACK ; 
+  		separated_nonempty_list(COMMA, param_type_classe) ; RIGHTBRACK) ;
+  		lp = option(LEFTPAR ; separated_list(COMMA, parametre) ; RIGHTPAR) ;
+		ic = option(int_class) ; LEFTBRACK ; 
+		ld = separated_list(SEMICOLON, decl) ; RIGHTBRACK
 
+int_classe:
+  | EXTENDS ; t = type_scala ; 
+  		le = option(LEFTPAR ; separated_list(COMMA, expr) ; RIGHTPAR)
 
 decl:
   | v = VAR
@@ -58,7 +62,15 @@ var:
   | VAL ; i = IDENT ; t = option( COLON ; type_scala ) ; EQUAL ; e = expr
 
 methode:
-(* à compléter *)
+  | b = boption(OVERRIDE) ; DEF ; i = IDENT ; 
+  		lpt = option(RIGHTSQBRACK ; nonempty_separated_list(COMMA, param_type) ;
+		LEFTSQBRACK) ;
+		LEFTPAR ; lp = separated_list(COMMA, parametre) ; RIGHTPAR ; blc = bloc
+  | b = boption(OVERRIDE) ; DEF ; i = IDENT ;
+  		lpt = option(RIGHTSQBRACK ; nonempty_separated_list(COMMA, param_type) ;
+		LEFTSQBARCK) ;
+		LEFTPAR ; lp = separated_list(COMMA, parametre) ; RIGHTPAR ;
+		COLON ; t = type_scala ; EQUAL ; e = expr
 
 parametre:
   | i = IDENT ; COLON ; t = type_scala
@@ -99,18 +111,34 @@ expr:
   		l = separated_list(COMMA, expr) ; RIGHTPAR
   | BANG ; e = expr
   | MINUS ; e = expr
-  | e1 = expr ; op = operateur ; e2 = expr
+  | e1 = expr ; PLUS ; e2 = expr
+  | e1 = expr ; MINUS ; e2 = expr
+  | e1 = expr ; TIME ; e2 = expr
+  | e1 = expr ; DIV ; e2 = expr
+  | e1 = expr ; MOD ; e2 = expr
+  | e1 = expr ; AND ; e2 = expr
+  | e1 = expr ; OR ; e2 = expr
+  | e1 = expr ; EQ ; e2 = expr
+  | e1 = expr ; NE ; e2 = expr
+  | e1 = expr ; DBLEQUAL ; e2 = expr
+  | e1 = expr ; NEQ ; e2 = expr
+  | e1 = expr ; LW ; e2 = expr
+  | e1 = expr ; GR ; e2 = expr
+  | e1 = expr ; LEQ ; e2 = expr
+  | e1 = expr ; GEQ ; e2 = expr
   | IF ; LEFTPAR ; e1 = expr ; RIGHTPAR ; e2 = expr
   | IF ; LEFTPAR ; e1 = expr ; RIGHTPAR ; e2 = expr ; ELSE ; e3 = expr
   | WHILE ; LEFTPAR ; e1 = expr ; RIGHTPAR ; e2 = expr
   | RETURN ; e = option(expr)
   | PRINT ; LEFTPAR ; e = expr ; RIGHTPAR
   | b = bloc
-(* à compléter *)
 
 bloc:
-  | LEFTBRACK ; v = var ; RIGHTBRACK
-  | LEFTBRACK ; l = separated_list(SEMICOLON, expr) ; RIGHTBRACK
+  | LEFTBRACK ; l = separated_list(SEMICOLON, int_bloc) ; RIGHTBRACK
+
+int_bloc:
+  | v = var
+  | e = expr
 
 acces:
   | i = IDENT
