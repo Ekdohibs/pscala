@@ -44,7 +44,7 @@ let whitespace =  [ ' ' '\t' ]
 rule token = parse
   | whitespace					{ token lexbuf }
   | "//"						{ comment_line lexbuf }
-  | "(*"						{ comment_base lexbuf }
+  | "/*"						{ comment_base lexbuf }
   | "\n"						{ newline lexbuf ; token lexbuf }
   | "=="						{ DBLEQUAL }
   | "="							{ EQUAL }
@@ -86,7 +86,7 @@ and comment_line = parse
   | eof		{ EOF }
 
 and comment_base = parse
-  | "*)"			{ token lexbuf }
+  | "*/"			{ token lexbuf }
   | _				{ comment_base lexbuf }
   | eof				{ raise (Lexing_error "Commentaire non terminé") }
 

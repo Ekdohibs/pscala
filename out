@@ -1,0 +1,2 @@
+File "tests/syntax/bad/testfile-unclosed_string-1.scala", line 2, characters 13-14:
+Illegal caracter
