@@ -6,11 +6,11 @@ max=0
 
 echo "Tests positifs (fichiers dans tests/good/)"
 
-for f in tests/syntax/good/*.scala tests/typing/good/*.scala tests/exec/*.scala tests/typing/bad/*.scala tests/exec-fail/*.scala; do
+for f in tests/typing/good/*.scala tests/exec/*.scala tests/exec-fail/*.scala; do
     max=`expr $max + 1`;
     echo $f
     rm -f out
-    if ./pscala $f --parse-only > out; then
+    if ./pscala $f > out; then
         score=`expr $score + 1`;
     else
         echo "  ECHEC du parsing pour $f"
@@ -20,11 +20,11 @@ echo
 
 echo "Tests négatifs (fichiers dans tests/bad/)"
 
-for f in tests/syntax/bad/*.scala; do
+for f in tests/typing/bad/*.scala; do
     max=`expr $max + 1`;
     echo $f
     rm -f out
-    if ./pscala $f --parse-only > out 2>&1; then
+    if ./pscala $f > out 2>&1; then
         echo "  ECHEC : le parsing de $f devrait échouer"
     else
         #if grep -q "^error:" out; then
@@ -34,6 +34,8 @@ for f in tests/syntax/bad/*.scala; do
         #fi
     fi
 done
+
+rm out
 
 echo
 percent=`expr 100 \* $score / $max`;

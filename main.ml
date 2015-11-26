@@ -29,5 +29,5 @@ let prog = try
 	   report_error arg (Lexing.lexeme_start_p lexbuf) (Lexing.lexeme_end_p lexbuf);
 	   print_string "Syntax error\n"; exit 1
 	 end
-(* | _ -> print_string "no2\n"; exit 1 *)
+  | _ -> print_string "Internal compiler error\n"; exit 2
 let () = print_string "ok\n"; exit 0

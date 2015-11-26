@@ -12,3 +12,4 @@ lexer.mli
 .depend
 *.out
 pscala
+out
