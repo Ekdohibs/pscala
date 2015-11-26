@@ -37,6 +37,7 @@
 
 let digits = ['0'-'9']
 let alpha = ['a'-'z'] | ['A'-'Z']
+let entier = "0" | ( ['1'-'9'] digits* )
 let car = "\\\\" | "\\\"" | "\\n" | "\\t"  | [' ' '!' ] | [ '#'-'['] | [ ']'-'~' ]
 let mot = alpha ( alpha | digits | '_' )*
 let whitespace =  [ ' ' '\t' ]
@@ -77,7 +78,7 @@ rule token = parse
   | "!"							{ BANG }
   | mot	as s					{ try Hashtbl.find keywords s
      with Not_found -> IDENT s }
-  | digits+ as s				{ (* TODO: la constante doit etre entre -2^31 et 2^31 - 1 *) INT (int_of_string s) }
+  | entier as s				{ (* TODO: la constante doit etre entre -2^31 et 2^31 - 1 *) INT s }
   | _ 		   					{ raise (Lexing_error "Illegal caracter") }
 
 and comment_line = parse

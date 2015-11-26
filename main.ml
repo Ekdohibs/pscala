@@ -19,7 +19,7 @@ let lexbuf = Lexing.from_channel in_chan
 let prog = try
 	Parser.prog Lexer.token lexbuf
   with
-  | Lexer.Lexing_error s ->
+  | Lexer.Lexing_error s | Parser_error.Parser_error s ->
 	 begin
 	   report_error arg (Lexing.lexeme_start_p lexbuf) (Lexing.lexeme_end_p lexbuf);
 	   print_endline s; exit 1
