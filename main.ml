@@ -9,7 +9,9 @@ let escape_string ff s =
   done
   
 let report_error filename start_pos end_pos =
-  Printf.printf "File \"%a\", line %d, characters %d-%d:\n" escape_string filename start_pos.pos_lnum start_pos.pos_bol end_pos.pos_bol
+  let start_col = start_pos.pos_cnum - start_pos.pos_bol + 1 in
+  let end_col = end_pos.pos_cnum - start_pos.pos_bol + 1 in
+  Printf.printf "File \"%a\", line %d, characters %d-%d:\n" escape_string filename start_pos.pos_lnum start_col end_col
 
 let arg = Sys.argv.(1)
 let in_chan = open_in arg
@@ -19,12 +21,12 @@ let prog = try
   with
   | Lexer.Lexing_error s ->
 	 begin
-	   report_error arg lexbuf.lex_start_p lexbuf.lex_curr_p;
+	   report_error arg (Lexing.lexeme_start_p lexbuf) (Lexing.lexeme_end_p lexbuf);
 	   print_endline s; exit 1
 	 end
   | Parser.Error ->
 	 begin
-	   report_error arg lexbuf.lex_start_p lexbuf.lex_curr_p;
+	   report_error arg (Lexing.lexeme_start_p lexbuf) (Lexing.lexeme_end_p lexbuf);
 	   print_string "Syntax error\n"; exit 1
 	 end
 (* | _ -> print_string "no2\n"; exit 1 *)
