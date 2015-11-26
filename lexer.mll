@@ -38,7 +38,7 @@
 let digits = ['0'-'9']
 let alpha = ['a'-'z'] | ['A'-'Z']
 let car = "\\\\" | "\\\"" | "\\n" | "\\t"  | [' ' '!' ] | [ '#'-'['] | [ ']'-'~' ]
-let mot = ['a'-'z'] ( alpha | digits | '_' )*
+let mot = alpha ( alpha | digits | '_' )*
 let whitespace =  [ ' ' '\t' ]
 
 rule token = parse
@@ -77,7 +77,8 @@ rule token = parse
   | "!"							{ BANG }
   | mot	as s					{ try Hashtbl.find keywords s
      with Not_found -> IDENT s }
-  | digits+ as s				{ INT (int_of_string s) }
+  | digits+ as s				{ (* TODO: la constante doit etre entre -2^31 et 2^31 - 1 *) INT (int_of_string s) }
+  | _ 		   					{ raise (Lexing_error "Illegal caracter") }
 
 and comment_line = parse
   | "\n"	{ newline lexbuf; token lexbuf }
@@ -87,5 +88,5 @@ and comment_line = parse
 and comment_base = parse
   | "*)"			{ token lexbuf }
   | _				{ comment_base lexbuf }
-  | eof				{ raise (Lexing_error "commentaire non terminé") }
+  | eof				{ raise (Lexing_error "Commentaire non terminé") }
 

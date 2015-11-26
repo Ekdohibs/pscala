@@ -3,7 +3,6 @@ GENERATED = lexer.ml parser.ml parser.mli
 FLAGS=-annot -g
 
 all: pscala
-	./pscala test.py
 
 .PHONY: tests
 tests: pscala

@@ -1,7 +1,8 @@
 %{
- open Ast
+  open Ast
  let w pos x = { location = pos; desc = x }
  let sugar x = { location = Lexing.dummy_pos, Lexing.dummy_pos; desc = x }
+
 %}
 
 %token CLASS EQ EXTENDS MAIN NE NEW NULL OBJECT OVERRIDE THIS VAL VAR
