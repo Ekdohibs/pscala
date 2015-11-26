@@ -10,3 +10,5 @@ parser.mli
 lexer.ml
 lexer.mli
 .depend
+*.out
+pscala
