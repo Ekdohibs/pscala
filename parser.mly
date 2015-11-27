@@ -57,15 +57,18 @@ classe:
 		ld = separated_list(SEMICOLON, decl) ; RIGHTBRACK
 			 { w ($startpos, $endpos)
 			   { class_name = i;
-				   class_type_params = lptc;
-				   class_params = lp;
-				   class_decls = ld;
-				   class_extends = ic
-				 } }
+				 class_type_params = lptc;
+				 class_params = lp;
+				 class_decls = ld;
+				 class_extends =
+				   match ic with
+				   | None -> (sugar { type_name = "AnyRef"; arguments_type = [] }), []
+				   | Some e -> e
+			   } }
 
 int_class:
   | EXTENDS ; t = type_scala ; 
-  		le = option(delimited(LEFTPAR, separated_list(COMMA, expr), RIGHTPAR))
+  		le = loption(delimited(LEFTPAR, separated_list(COMMA, expr), RIGHTPAR))
 		 { (t, le) }
 
 decl:
@@ -74,7 +77,7 @@ decl:
 
 var:
   | VAR ; i = IDENT ; t = option(preceded(COLON, type_scala)) ; EQUAL ; e = expr
-          { w ($startpos, $endpos){ var_mutable = true;
+          { w ($startpos, $endpos) { var_mutable = true;
 					   var_name = i;
 					   var_type = t;
 					   var_expr = e } }
@@ -95,12 +98,12 @@ methode:
 		lp = separated_list(COMMA, parametre) ; RIGHTPAR ; blc = bloc
 		    { w ($startpos, $endpos)
 			  { method_override = b ;
-			      method_name = i ;
-				  method_param_types = lpt ;
-				  method_params = lp ;
-				  method_type = 
-					  sugar { type_name = "Unit" ; arguments_type = [] } ;
-				  method_body = { location = blc.location ; desc = Ebloc blc } } }
+			    method_name = i ;
+				method_param_types = lpt ;
+				method_params = lp ;
+				method_type = 
+				  sugar { type_name = "Unit" ; arguments_type = [] } ;
+				method_body = { location = blc.location ; desc = Ebloc blc } } }
   | b = boption(OVERRIDE) ; DEF ; i = IDENT ;
   		lpt = square_list(param_type) ;
 		LEFTPAR ; lp = separated_list(COMMA, parametre) ; RIGHTPAR ;

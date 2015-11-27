@@ -58,7 +58,7 @@ and p_class = { class_name : p_ident;
 				class_type_params : p_param_type_class desc list;
 				class_params : p_param desc list option;
 				class_decls : p_decl desc list;
-				class_extends : ((p_type desc) * (p_expr desc list option)) option
+				class_extends : (p_type desc) * (p_expr desc list)
 			  }
 and p_prog = { prog_classes : p_class desc list;
 			   prog_main : p_decl desc list
