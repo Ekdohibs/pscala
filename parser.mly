@@ -52,7 +52,7 @@ prog:
 
 classe:
   | CLASS ; i = IDENT ; lptc = square_list(param_type_classe) ;
-  		lp = option(delimited(LEFTPAR, separated_list(COMMA, parametre) , RIGHTPAR)) ;
+  		lp = loption(delimited(LEFTPAR, separated_list(COMMA, parametre) , RIGHTPAR)) ;
 		ic = option(int_class) ; LEFTBRACK ; 
 		ld = separated_list(SEMICOLON, decl) ; RIGHTBRACK
 			 { w ($startpos, $endpos)
