@@ -1,7 +1,7 @@
 CMO=lexer.cmo parser_error.cmo parser.cmo main.cmo
 GENERATED = lexer.ml parser.ml parser.mli
 FLAGS=-annot -g
-
+MENHIR_FLAGS=-v --infer
 all: pscala
 
 .PHONY: tests
@@ -23,14 +23,17 @@ pscala: $(CMO)
 	ocamllex $<
 
 .mly.ml:
-	menhir -v $<
+	menhir $(MENHIR_FLAGS) $<
 
 .mly.mli:
-	menhir -v $<
+	menhir $(MENHIR_FLAGS) $<
+
+parser.mly: ast.cmi parser_error.cmo
 
 clean:
 	rm -f *.cm[io] *.o *.annot *~ pscala$(GENERATED)
 	rm -f parser.output parser.automaton
+	rm -f .depend
 
 .depend depend:$(GENERATED)
 	rm -f .depend
