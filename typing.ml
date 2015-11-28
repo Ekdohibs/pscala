@@ -1,4 +1,5 @@
 open Ast
+exception Typing_error of (Format.formatter -> unit) * (Lexing.position * Lexing.position)
 
 module Smap = Map.Make(String)
 module Sset = Set.Make(String)
@@ -27,11 +28,25 @@ type t_class = {
 }
 					  
 type t_env = {
-  env_classes : t_class Smap.t;
-  env_constraints : t_type Smap.t;
-  env_variables : (bool * t_type) Smap.t;
+  env_classes : t_class Smap.t; (* Les classes de l'environnement; inclut les types sans paramètres *)
+  env_constraints : t_type Smap.t; (* Les contraintes de type *)
+  env_variables : (bool * t_type) Smap.t; (* Les variables, mutables ou non *)
 }
 
+let rec print_type ff t =
+  Format.fprintf ff "%s" t.t_type_name;
+  match t.t_arguments_type with
+	[] -> ()
+  | t1 :: ts ->
+	 Format.open_hovbox 2;
+	 Format.fprintf ff "[";
+	 print_type ff t1;
+	 List.iter (Format.fprintf ff ",@, %a" print_type) ts;
+	 Format.close_box ();
+	 Format.fprintf ff "]"
+
+let s2f s ff = Format.fprintf ff "%s" s
+					
 let rec arg_subst subst t =
   if Smap.mem t.t_type_name subst then
 	Smap.find t.t_type_name subst
@@ -72,3 +87,75 @@ let rec is_subtype env t1 t2 =
 	  else false
   end
 	
+let rec p_to_t_type env t =
+  let args = t.desc.arguments_type in
+  let name = t.desc.type_name in
+  let c =
+	try Smap.find name env.env_classes
+	with
+	  Not_found -> raise (Typing_error ((fun ff -> Format.fprintf ff "Unbound class: %s" name), t.location))
+  in
+  let p_types = c.t_class_type_params in
+  if List.length args <> List.length p_types then
+	raise (Typing_error ((fun ff -> Format.fprintf ff "Incorrect number of arguments for class %s: expected %d, got %d" name (List.length p_types) (List.length args)), t.location));
+  let t_args = List.map (p_to_t_type env) t.desc.arguments_type in
+  let subst = class_subst c t_args in
+  List.iter2
+	(fun (tt, typ) (_, cstr, _) ->
+	 begin
+	   match cstr with
+		 TAny -> ()
+	   | Tsubtype t2 ->
+		  let nt = arg_subst subst t2 in
+		  if not (is_subtype env typ nt) then
+		  raise (Typing_error ((fun ff -> Format.fprintf ff "Type argument does not comply to bounds:@ type@, %a@ should be a subtype of type@ %a" print_type typ print_type nt), tt.location))
+	   | Tsupertype t2 ->
+		  let nt = arg_subst subst t2 in
+		  if not (is_subtype env nt typ) then
+		  raise (Typing_error ((fun ff -> Format.fprintf ff "Type argument does not comply to bounds:@ type@, %a@ should be a supertype of type@%a" print_type typ print_type nt), tt.location))
+	 end
+	) (List.combine t.desc.arguments_type t_args) p_types;
+  { t_type_name = t.desc.type_name;
+	t_arguments_type = t_args
+  }
+
+let rec expr_type env e =
+  match e.desc with
+  | Eint _ -> { t_type_name = "Int"; t_arguments_type = [] }
+  | Estring _ -> { t_type_name = "String"; t_arguments_type = [] }
+  | Ebool _ -> { t_type_name = "Bool"; t_arguments_type = [] }
+  | Eunit -> { t_type_name = "Unit"; t_arguments_type = [] }
+  | Ethis -> let (_, typ) = Smap.find "this" env.env_variables in
+			 typ
+  | Enull -> { t_type_name = "Null"; t_arguments_type = [] }
+  | Eaccess acc -> snd (access_type env acc)
+  | Eassign (acc, value) ->
+	 let (is_mutable, t) = access_type env acc in
+	 if not is_mutable then
+	   raise (Typing_error (s2f "Trying to assign an immutable value", e.location));
+	 let t2 = expr_type env value in
+	 if not (is_subtype env t2 t) then
+	   raise (Typing_error ((fun ff -> Format.fprintf ff "Incorrect types in assignment:@ type@, %a@ is not a subtype of type @, %a" print_type t2 print_type t), e.location));
+	 { t_type_name = "Unit"; t_arguments_type = [] }
+  | Ecall (acc, t_params, args) -> assert false
+  | Enew _ -> assert false
+  | Eunary _ -> assert false
+  | Ebinary _ -> assert false
+  | Eif _ -> assert false
+  | Ewhile _ -> assert false
+  | Ereturn _ -> assert false
+  | Eprint _ -> assert false
+  | Ebloc _ -> assert false
+
+and access_type env acc =
+  match acc.desc with
+  | Avar id ->
+	 (try Smap.find id env.env_variables
+	 with Not_found ->
+	   raise (Typing_error ((fun ff -> Format.fprintf ff "Variable does not exist: %s" id), acc.location)))
+  | Afield (e, id) ->
+	 let t = expr_type env e in
+	 let c = Smap.find t.t_type_name env.env_classes in
+	 try Smap.find id c.t_class_vars
+	 with Not_found ->
+	   raise (Typing_error ((fun ff -> Format.fprintf ff "Type %a has no field %s" print_type t id), acc.location))
