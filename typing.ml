@@ -202,15 +202,47 @@ let add_type_param_to_env env name constr =
 		  | _ -> env.env_constraints);
 		env_variables = env.env_variables
 	  }
-			 
+		
 let type_class env c =
   let class_env = ref env in
-  List.iter
+  let type_params = List.map
 	(fun param ->
 	 let param_type = param.desc.param_type in
 	 let name = param_type.desc.param_type_name in
 	 let constr = constraint_to_t env param_type.desc.param_type_constraint in
-	 class_env := add_type_param_to_env !class_env name constr
-	) c.desc.class_type_params;
+	 class_env := add_type_param_to_env !class_env name constr;
+	 (name, constr, param.desc.param_variance)
+	) c.desc.class_type_params in
   let ext = p_to_t_type !class_env (fst c.desc.class_extends) in
+  let c_ext = Smap.find ext.t_type_name !class_env.env_classes in
+  let dummy_cls = {
+	t_class_type_params = type_params;
+	t_class_params = [];
+	t_class_vars = Smap.empty;
+	t_class_methods = Smap.empty;
+	t_class_extends = ext;
+	t_class_inherits = Sset.add ext.t_type_name c_ext.t_class_inherits
+  } in
+  let cenv = { !class_env with env_classes = Smap.add c.desc.class_name dummy_cls !class_env.env_classes } in
+  let params = List.map (fun param -> param.desc.par_name, p_to_t_type cenv param.desc.par_type) c.desc.class_params in
+  let cls = ref { dummy_cls with t_class_params = List.map snd params } in
+  class_env := { !class_env with env_classes = Smap.add c.desc.class_name !cls !class_env.env_classes };
+  List.iter
+	(fun (par_name, par_type) ->
+	 class_env := { !class_env with
+					env_variables = Smap.add par_name (false, par_type)
+											 !class_env.env_variables }
+	) params;
+  class_env := { !class_env with
+				 env_variables = Smap.add "this"
+				   (false,
+					{ t_type_name = c.desc.class_name;
+					  t_arguments_type =
+						List.map (fun (name, _, _) ->
+								  { t_type_name = name;
+									t_arguments_type = [] })
+								 type_params
+					} )
+				   !class_env.env_variables };
+  (* TODO: vérifier l'appel à new, et les déclarations, + la variance *)
   ()
