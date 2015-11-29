@@ -33,6 +33,8 @@ type t_env = {
   env_variables : (bool * t_type) Smap.t; (* Les variables, mutables ou non *)
 }
 
+let type_s s = { t_type_name = s; t_arguments_type = [] }
+			   
 let rec print_type ff t =
   Format.fprintf ff "%s" t.t_type_name;
   match t.t_arguments_type with
@@ -133,13 +135,13 @@ let constraint_to_t env c =
 	
 let rec expr_type env e =
   match e.desc with
-  | Eint _ -> { t_type_name = "Int"; t_arguments_type = [] }
-  | Estring _ -> { t_type_name = "String"; t_arguments_type = [] }
-  | Ebool _ -> { t_type_name = "Bool"; t_arguments_type = [] }
-  | Eunit -> { t_type_name = "Unit"; t_arguments_type = [] }
+  | Eint _ -> type_s "Int"
+  | Estring _ -> type_s "String"
+  | Ebool _ -> type_s "Boolean"
+  | Eunit -> type_s "Unit"
   | Ethis -> let (_, typ) = Smap.find "this" env.env_variables in
 			 typ
-  | Enull -> { t_type_name = "Null"; t_arguments_type = [] }
+  | Enull -> type_s "Null"
   | Eaccess acc -> snd (access_type env acc)
   | Eassign (acc, value) ->
 	 let (is_mutable, t) = access_type env acc in
@@ -148,7 +150,7 @@ let rec expr_type env e =
 	 let t2 = expr_type env value in
 	 if not (is_subtype env t2 t) then
 	   raise (Typing_error ((fun ff -> Format.fprintf ff "Incorrect types in assignment:@ type@, %a@ is not a subtype of type @, %a" print_type t2 print_type t), e.location));
-	 { t_type_name = "Unit"; t_arguments_type = [] }
+	 type_s "Unit"
   | Ecall (acc, t_params, args) -> assert false
   | Enew _ -> assert false
   | Eunary _ -> assert false
@@ -159,7 +161,7 @@ let rec expr_type env e =
   | Eprint _ -> assert false
   | Ebloc b -> assert false
 	(*  if b.desc = [] then
-	   { t_type_name = "Unit"; t_arguments_type = [] }
+	   type_s "Unit"
 	 else
 	   last (List.map (expr_type env) b.desc) *)
 
@@ -183,8 +185,8 @@ and access_type env acc =
 let add_type_param_to_env env name constr =
   let extends = match constr with
 	  Tsubtype t -> t
-	| _ -> { t_type_name = "Any"; t_arguments_type = [] }
-  in
+	| _ -> type_s "Any"
+  in (* TODO: et Null ? *)
   let class_ext = Smap.find extends.t_type_name env.env_classes in
   let new_classes = Smap.add name
 	{
@@ -238,11 +240,42 @@ let type_class env c =
 				   (false,
 					{ t_type_name = c.desc.class_name;
 					  t_arguments_type =
-						List.map (fun (name, _, _) ->
-								  { t_type_name = name;
-									t_arguments_type = [] })
+						List.map (fun (name, _, _) -> type_s name)
 								 type_params
 					} )
 				   !class_env.env_variables };
-  (* TODO: vérifier l'appel à new, et les déclarations, + la variance *)
+  (* TODO: vérifier l'appel à new, et les déclarations, + la variance
+     Il faut pas oublier de mettre à jour non plus la classe Null
+ *)
+  { env with env_classes = Smap.add c.desc.class_name !cls env.env_classes }
+
+let make_base_class inherits extends =
+  { t_class_type_params = [];
+	t_class_params = [];
+	t_class_vars = Smap.empty;
+	t_class_methods = Smap.empty;
+	t_class_inherits = List.fold_left (fun u v -> Sset.add v u) Sset.empty inherits;
+	t_class_extends = type_s extends }
+	
+let base_classes =
+List.fold_left (fun m (n, v) -> Smap.add n v m) Smap.empty
+[
+  "Any", make_base_class [] "Any";
+  "AnyRef", make_base_class ["Any"] "Any";
+  "AnyVal", make_base_class ["Any"] "Any";
+  "Unit", make_base_class ["Any"; "AnyVal"] "AnyVal";
+  "Int", make_base_class ["Any"; "AnyVal"] "AnyVal";
+  "Boolean", make_base_class ["Any"; "AnyVal"] "AnyVal";
+  "String", make_base_class ["Any"; "AnyRef"] "AnyRef";
+  "Null", make_base_class ["Any"; "AnyRef"; "String"] "Null";
+  "Nothing", make_base_class [] "Nothing";
+]
+	
+let type_program prog =
+  let base_env = { env_classes = base_classes;
+				   env_constraints = Smap.empty;
+				   env_variables = Smap.empty } in
+  let env = ref base_env in
+  List.iter (fun cls -> env := type_class !env cls) prog.prog_classes;
+  (* TODO: type main *)
   ()

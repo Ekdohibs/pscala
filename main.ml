@@ -30,4 +30,6 @@ let prog = try
 	   print_string "Syntax error\n"; exit 1
 	 end
   | _ -> print_string "Internal compiler error\n"; exit 2
+(* Vérifier les arguments de ligne de commande avant de typer ! *) 
+let () = Typing.type_program prog
 let () = print_string "ok\n"; exit 0

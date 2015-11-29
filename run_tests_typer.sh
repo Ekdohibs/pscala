@@ -13,7 +13,7 @@ for f in tests/typing/good/*.scala tests/exec/*.scala tests/exec-fail/*.scala; d
     if ./pscala $f > out; then
         score=`expr $score + 1`;
     else
-        echo "  ECHEC du parsing pour $f"
+        echo "  ECHEC du typing pour $f"
     fi
 done
 echo
@@ -25,7 +25,7 @@ for f in tests/typing/bad/*.scala; do
     echo $f
     rm -f out
     if ./pscala $f > out 2>&1; then
-        echo "  ECHEC : le parsing de $f devrait échouer"
+        echo "  ECHEC : le typing de $f devrait échouer"
     else
         #if grep -q "^error:" out; then
             score=`expr $score + 1`;
