@@ -2,6 +2,7 @@
 # Copied shamelessly from mini-python
 
 score=0
+compiler_errors=0
 max=0
 
 echo "Tests positifs (fichiers dans tests/good/)"
@@ -10,10 +11,15 @@ for f in tests/syntax/good/*.scala tests/typing/good/*.scala tests/exec/*.scala 
     max=`expr $max + 1`;
     echo $f
     rm -f out
-    if ./pscala $f --parse-only > out; then
+    ./pscala $f --parse-only > out
+    result=$?
+    if (( $result == 0 )) ; then
         score=`expr $score + 1`;
-    else
+    elif (( $result == 1 )) ; then
         echo "  ECHEC du parsing pour $f"
+    else
+        echo "  ERREUR du compilateur pour $f"
+        compiler_errors=`expr $compiler_errors + 1`;
     fi
 done
 echo
@@ -24,14 +30,15 @@ for f in tests/syntax/bad/*.scala; do
     max=`expr $max + 1`;
     echo $f
     rm -f out
-    if ./pscala $f --parse-only > out 2>&1; then
+    ./pscala $f --parse-only > out 2>&1
+    result=$?
+    if (( $result == 1 )) ; then
+        score=`expr $score + 1`;
+    elif (( $result == 0 )) ; then
         echo "  ECHEC : le parsing de $f devrait échouer"
     else
-        #if grep -q "^error:" out; then
-            score=`expr $score + 1`;
-        #else
-        #    echo "  ECHEC : devrait afficher 'error'"
-        #fi
+        echo "  ERREUR du compilateur pour $f"
+        compiler_errors=`expr $compiler_errors + 1`;
     fi
 done
 
@@ -39,4 +46,5 @@ rm out
 
 echo
 percent=`expr 100 \* $score / $max`;
-echo "Score: $score / $max tests, soit $percent%"
+echo "Score: $score / $max tests, soit $percent%" 
+echo "Nombre d'erreurs du compilateur : $compiler_errors / $max tests"
