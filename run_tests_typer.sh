@@ -35,7 +35,7 @@ for f in tests/typing/bad/*.scala; do
     if (( $result == 1 )) ; then
         score=`expr $score + 1`;
     elif (( $result == 0 )) ; then
-        echo "  ECHEC : le parsing de $f devrait échouer"
+        echo "  ECHEC : le typing de $f devrait échouer"
     else
         echo "  ERREUR du compilateur pour $f"
         compiler_errors=`expr $compiler_errors + 1`;
