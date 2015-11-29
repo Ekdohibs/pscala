@@ -204,17 +204,25 @@ let add_type_param_to_env env name constr =
 		  | _ -> env.env_constraints);
 		env_variables = env.env_variables
 	  }
-		
+
+let extend_env env param_types =
+  let eenv = ref env in
+  let pt = List.map
+	(fun param_type -> 
+	 let name = param_type.desc.param_type_name in
+	 let constr = constraint_to_t !eenv param_type.desc.param_type_constraint in
+	 eenv := add_type_param_to_env !eenv name constr;
+	 (name, constr)) param_types in
+  (!eenv, pt)
+
 let type_class env c =
   let class_env = ref env in
-  let type_params = List.map
-	(fun param ->
-	 let param_type = param.desc.param_type in
-	 let name = param_type.desc.param_type_name in
-	 let constr = constraint_to_t !class_env param_type.desc.param_type_constraint in
-	 class_env := add_type_param_to_env !class_env name constr;
-	 (name, constr, param.desc.param_variance)
-	) c.desc.class_type_params in
+  let (ce, tp) = extend_env !class_env
+    (List.map (fun p -> p.desc.param_type) c.desc.class_type_params) in
+  let type_params = List.map2
+	(fun (n, cst) t -> (n, cst, t.desc.param_variance))
+	tp c.desc.class_type_params in
+  class_env := ce;
   let ext = p_to_t_type !class_env (fst c.desc.class_extends) in
   let c_ext = Smap.find ext.t_type_name !class_env.env_classes in
   let dummy_cls = {
@@ -269,6 +277,9 @@ List.fold_left (fun m (n, v) -> Smap.add n v m) Smap.empty
   "String", make_base_class ["Any"; "AnyRef"] "AnyRef";
   "Null", make_base_class ["Any"; "AnyRef"; "String"] "Null";
   "Nothing", make_base_class [] "Nothing";
+  (* Array, pour main *)
+  "Array", { (make_base_class [] "Array")
+		   with t_class_type_params = [(" ", TAny, Invariant)] };
 ]
 	
 let type_program prog =
