@@ -211,7 +211,7 @@ let type_class env c =
 	(fun param ->
 	 let param_type = param.desc.param_type in
 	 let name = param_type.desc.param_type_name in
-	 let constr = constraint_to_t env param_type.desc.param_type_constraint in
+	 let constr = constraint_to_t !class_env param_type.desc.param_type_constraint in
 	 class_env := add_type_param_to_env !class_env name constr;
 	 (name, constr, param.desc.param_variance)
 	) c.desc.class_type_params in
