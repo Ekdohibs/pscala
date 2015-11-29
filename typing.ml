@@ -151,8 +151,12 @@ and access_type env acc =
   match acc.desc with
   | Avar id ->
 	 (try Smap.find id env.env_variables
-	 with Not_found ->
-	   raise (Typing_error ((fun ff -> Format.fprintf ff "Variable does not exist: %s" id), acc.location)))
+	  with Not_found ->
+		   let _, this = Smap.find "this" env.env_variables in
+		   let c = Smap.find this.t_type_name env.env_classes in
+		   try Smap.find id c.t_class_vars
+		   with Not_found ->
+			 raise (Typing_error ((fun ff -> Format.fprintf ff "Variable does not exist: %s" id), acc.location)))
   | Afield (e, id) ->
 	 let t = expr_type env e in
 	 let c = Smap.find t.t_type_name env.env_classes in
