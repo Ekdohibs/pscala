@@ -228,8 +228,8 @@ let type_class env c =
   let dummy_cls = {
 	t_class_type_params = type_params;
 	t_class_params = [];
-	t_class_vars = Smap.empty;
-	t_class_methods = Smap.empty;
+	t_class_vars = c_ext.t_class_vars;
+	t_class_methods = c_ext.t_class_methods;
 	t_class_extends = ext;
 	t_class_inherits = Sset.add ext.t_type_name c_ext.t_class_inherits
   } in
