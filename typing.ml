@@ -46,7 +46,13 @@ let rec print_type ff t =
 	 Format.fprintf ff "]"
 
 let s2f s ff = Format.fprintf ff "%s" s
-					
+
+let rec last l =
+  match l with
+  | [] -> raise (Invalid_argument "last")
+  | [x] -> x
+  | h :: t -> last t
+							 
 let rec arg_subst subst t =
   if Smap.mem t.t_type_name subst then
 	Smap.find t.t_type_name subst
@@ -119,6 +125,12 @@ let rec p_to_t_type env t =
 	t_arguments_type = t_args
   }
 
+let constraint_to_t env c =
+  match c with
+  | Any -> TAny
+  | Subtype t -> Tsubtype (p_to_t_type env t)
+  | Supertype t -> Tsupertype (p_to_t_type env t)
+	
 let rec expr_type env e =
   match e.desc with
   | Eint _ -> { t_type_name = "Int"; t_arguments_type = [] }
@@ -145,7 +157,11 @@ let rec expr_type env e =
   | Ewhile _ -> assert false
   | Ereturn _ -> assert false
   | Eprint _ -> assert false
-  | Ebloc _ -> assert false
+  | Ebloc b -> assert false
+	(*  if b.desc = [] then
+	   { t_type_name = "Unit"; t_arguments_type = [] }
+	 else
+	   last (List.map (expr_type env) b.desc) *)
 
 and access_type env acc =
   match acc.desc with
@@ -156,10 +172,45 @@ and access_type env acc =
 		   let c = Smap.find this.t_type_name env.env_classes in
 		   try Smap.find id c.t_class_vars
 		   with Not_found ->
-			 raise (Typing_error ((fun ff -> Format.fprintf ff "Variable does not exist: %s" id), acc.location)))
+			 raise (Typing_error ((fun ff -> Format.fprintf ff "Unbound variable: %s" id), acc.location)))
   | Afield (e, id) ->
 	 let t = expr_type env e in
 	 let c = Smap.find t.t_type_name env.env_classes in
 	 try Smap.find id c.t_class_vars
 	 with Not_found ->
 	   raise (Typing_error ((fun ff -> Format.fprintf ff "Type %a has no field %s" print_type t id), acc.location))
+
+let add_type_param_to_env env name constr =
+  let extends = match constr with
+	  Tsubtype t -> t
+	| _ -> { t_type_name = "Any"; t_arguments_type = [] }
+  in
+  let class_ext = Smap.find extends.t_type_name env.env_classes in
+  let new_classes = Smap.add name
+	{
+	  t_class_type_params = [];
+	  t_class_params = [];
+	  t_class_vars = class_ext.t_class_vars;
+	  t_class_methods = class_ext.t_class_methods;
+	  t_class_extends = extends;
+	  t_class_inherits = Sset.add extends.t_type_name class_ext.t_class_inherits
+	} env.env_classes in
+	  { env_classes = new_classes;
+		env_constraints =
+		  (match constr with
+			Tsupertype t -> Smap.add name t env.env_constraints
+		  | _ -> env.env_constraints);
+		env_variables = env.env_variables
+	  }
+			 
+let type_class env c =
+  let class_env = ref env in
+  List.iter
+	(fun param ->
+	 let param_type = param.desc.param_type in
+	 let name = param_type.desc.param_type_name in
+	 let constr = constraint_to_t env param_type.desc.param_type_constraint in
+	 class_env := add_type_param_to_env !class_env name constr
+	) c.desc.class_type_params;
+  let ext = p_to_t_type !class_env (fst c.desc.class_extends) in
+  ()
