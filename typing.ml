@@ -309,8 +309,12 @@ let type_class env c =
         param.desc.par_name, p_to_t_type cenv param.desc.par_type) 
         c.desc.class_params in
   let cls = ref { dummy_cls with t_class_params = List.map snd params } in
-  class_env := { !class_env with env_classes = 
-        Smap.add c.desc.class_name !cls !class_env.env_classes };
+  let env_classes = !class_env.env_classes in
+  let update_class_env () =
+	class_env := { !class_env with env_classes =
+	  Smap.add class_name !cls env_classes }
+  in
+  update_class_env ();
   List.iter
 	(fun (par_name, par_type) ->
 	 class_env := { !class_env with
@@ -328,7 +332,18 @@ let type_class env c =
 				   !class_env.env_variables };
   new_type !class_env ext (snd c.desc.class_extends)
 		   (list_loc (snd c.desc.class_extends));
-  
+  let decl_var v =
+	let t = var_type !class_env v in
+	cls := { !cls with t_class_vars =
+				   Smap.add v.desc.var_name
+	    		   (v.desc.var_mutable, t) !cls.t_class_vars };
+	update_class_env ()
+  in
+  let decl_method m =
+	(* TODO: check override *)
+	let method_env = extend_env !class_env param_types in
+	()
+  in
   (* TODO: vérifier l'appel les déclarations, + la variance
      Il faut pas oublier de mettre à jour non plus la classe Null
  *)
