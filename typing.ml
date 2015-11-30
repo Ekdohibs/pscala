@@ -88,10 +88,12 @@ let rec is_subtype env t1 t2 =
 	  let c = Smap.find ct.t_type_name env.env_classes in
 	  let subst = class_subst c1 t1.t_arguments_type in
 	  let ct_subst = arg_subst subst ct in
-	  if Sset.mem t2.t_type_name c.t_class_inherits && is_subtype env ct_subst t2 then
+	  if Sset.mem t2.t_type_name c.t_class_inherits 
+		   && is_subtype env ct_subst t2 then
 		true
 	  else if Smap.mem t2.t_type_name env.env_constraints then
-		not (Sset.mem t1.t_type_name c2.t_class_inherits) && (is_subtype env t1 (Smap.find t2.t_type_name env.env_constraints))
+		not (Sset.mem t1.t_type_name c2.t_class_inherits) 
+		   && (is_subtype env t1 (Smap.find t2.t_type_name env.env_constraints))
 	  else false
   end
 	
@@ -101,11 +103,15 @@ let rec p_to_t_type env t =
   let c =
 	try Smap.find name env.env_classes
 	with
-	  Not_found -> raise (Typing_error ((fun ff -> Format.fprintf ff "Unbound class: %s" name), t.location))
+	  Not_found -> raise (Typing_error 
+	     ((fun ff -> Format.fprintf ff "Unbound class: %s" name), t.location))
   in
   let p_types = c.t_class_type_params in
   if List.length args <> List.length p_types then
-	raise (Typing_error ((fun ff -> Format.fprintf ff "Incorrect number of arguments for class %s: expected %d, got %d" name (List.length p_types) (List.length args)), t.location));
+	raise (Typing_error 
+	   ((fun ff -> Format.fprintf ff 
+	   "Incorrect number of arguments for class %s: expected %d, got %d" 
+	   name (List.length p_types) (List.length args)), t.location));
   let t_args = List.map (p_to_t_type env) t.desc.arguments_type in
   let subst = class_subst c t_args in
   List.iter2
@@ -116,11 +122,17 @@ let rec p_to_t_type env t =
 	   | Tsubtype t2 ->
 		  let nt = arg_subst subst t2 in
 		  if not (is_subtype env typ nt) then
-		  raise (Typing_error ((fun ff -> Format.fprintf ff "Type argument does not comply to bounds:@ type@, %a@ should be a subtype of type@ %a" print_type typ print_type nt), tt.location))
+		  raise (Typing_error 
+		     ((fun ff -> Format.fprintf ff 
+			 "Type argument does not comply to bounds:@ type@, %a@ should be a subtype of type@ %a" 
+			 print_type typ print_type nt), tt.location))
 	   | Tsupertype t2 ->
 		  let nt = arg_subst subst t2 in
 		  if not (is_subtype env nt typ) then
-		  raise (Typing_error ((fun ff -> Format.fprintf ff "Type argument does not comply to bounds:@ type@, %a@ should be a supertype of type@%a" print_type typ print_type nt), tt.location))
+		  raise (Typing_error 
+		     ((fun ff -> Format.fprintf ff 
+			 "Type argument does not comply to bounds:@ type@, %a@ should be a supertype of type@%a" 
+			 print_type typ print_type nt), tt.location))
 	 end
 	) (List.combine t.desc.arguments_type t_args) p_types;
   { t_type_name = t.desc.type_name;
@@ -146,10 +158,14 @@ let rec expr_type env e =
   | Eassign (acc, value) ->
 	 let (is_mutable, t) = access_type env acc in
 	 if not is_mutable then
-	   raise (Typing_error (s2f "Trying to assign an immutable value", e.location));
+	   raise (Typing_error 
+	       (s2f "Trying to assign an immutable value", e.location));
 	 let t2 = expr_type env value in
 	 if not (is_subtype env t2 t) then
-	   raise (Typing_error ((fun ff -> Format.fprintf ff "Incorrect types in assignment:@ type@, %a@ is not a subtype of type @, %a" print_type t2 print_type t), e.location));
+	   raise (Typing_error 
+	      ((fun ff -> Format.fprintf ff 
+		  "Incorrect types in assignment:@ type@, %a@ is not a subtype of type @, %a" 
+		  print_type t2 print_type t), e.location));
 	 type_s "Unit"
   | Ecall (acc, t_params, args) -> assert false
   | Enew _ -> assert false
@@ -174,13 +190,17 @@ and access_type env acc =
 		   let c = Smap.find this.t_type_name env.env_classes in
 		   try Smap.find id c.t_class_vars
 		   with Not_found ->
-			 raise (Typing_error ((fun ff -> Format.fprintf ff "Unbound variable: %s" id), acc.location)))
+			 raise (Typing_error 
+			    ((fun ff -> Format.fprintf ff "Unbound variable: %s" id), 
+				acc.location)))
   | Afield (e, id) ->
 	 let t = expr_type env e in
 	 let c = Smap.find t.t_type_name env.env_classes in
 	 try Smap.find id c.t_class_vars
 	 with Not_found ->
-	   raise (Typing_error ((fun ff -> Format.fprintf ff "Type %a has no field %s" print_type t id), acc.location))
+	   raise (Typing_error 
+	      ((fun ff -> Format.fprintf ff 
+		  "Type %a has no field %s" print_type t id), acc.location))
 
 let add_type_param_to_env env name constr =
   let extends = match constr with
@@ -233,10 +253,14 @@ let type_class env c =
 	t_class_extends = ext;
 	t_class_inherits = Sset.add ext.t_type_name c_ext.t_class_inherits
   } in
-  let cenv = { !class_env with env_classes = Smap.add c.desc.class_name dummy_cls !class_env.env_classes } in
-  let params = List.map (fun param -> param.desc.par_name, p_to_t_type cenv param.desc.par_type) c.desc.class_params in
+  let cenv = { !class_env with env_classes = 
+        Smap.add c.desc.class_name dummy_cls !class_env.env_classes } in
+  let params = List.map (fun param -> 
+        param.desc.par_name, p_to_t_type cenv param.desc.par_type) 
+        c.desc.class_params in
   let cls = ref { dummy_cls with t_class_params = List.map snd params } in
-  class_env := { !class_env with env_classes = Smap.add c.desc.class_name !cls !class_env.env_classes };
+  class_env := { !class_env with env_classes = 
+        Smap.add c.desc.class_name !cls !class_env.env_classes };
   List.iter
 	(fun (par_name, par_type) ->
 	 class_env := { !class_env with
@@ -262,7 +286,8 @@ let make_base_class inherits extends =
 	t_class_params = [];
 	t_class_vars = Smap.empty;
 	t_class_methods = Smap.empty;
-	t_class_inherits = List.fold_left (fun u v -> Sset.add v u) Sset.empty inherits;
+	t_class_inherits = List.fold_left 
+	   (fun u v -> Sset.add v u) Sset.empty inherits;
 	t_class_extends = type_s extends }
 	
 let base_classes =
@@ -281,7 +306,33 @@ List.fold_left (fun m (n, v) -> Smap.add n v m) Smap.empty
   "Array", { (make_base_class [] "Array")
 		   with t_class_type_params = [(" ", TAny, Invariant)] };
 ]
-	
+
+let rec variance_type env name_t typ var = match typ.t_type_name = name_t with
+  | true  -> if var = 1 then () else assert false
+  | false -> 
+     let cl = Smap.find name_t env in
+	 List.iter2 (fun a (_,_,b) -> variance_type env name_t a (aux b)*var)
+	    typ.t_arguments_type cl.t_class_type_params
+and aux = function
+  | Covariant     -> 1
+  | Contravariant -> -1
+  | Invariant     -> 0
+
+
+let variance_sign env name_t classe x =
+  Smap.iter (fun a (b,c) -> 
+    if b then variance_type env name_t c 0 else variance_type env name_t c x)
+    classe.t_class_vars ;
+  List.iter (fun a -> variance_type env name_t a x) classe.t_class_extends ;
+
+  (* let test = ref(true) in
+  Smap.iter (fun str (a,b) -> if b = name_t then test := !test && not(a) && )  classe.t_class_vars *)
+
+let variance env name_t classe i = match i with
+  | 0  -> true
+  | x  -> variance_sign env name_t classe x
+     
+
 let type_program prog =
   let base_env = { env_classes = base_classes;
 				   env_constraints = Smap.empty;
