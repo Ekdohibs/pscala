@@ -3,7 +3,8 @@
 type 'a desc = { location : Lexing.position * Lexing.position;
 				 desc : 'a
 			   }
-and p_variance = Invariant | Covariant | Contravariant
+				 
+type p_variance = Invariant | Covariant | Contravariant
 and p_ident = string
 and p_type = { type_name : p_ident;
 			   arguments_type : p_type desc list
@@ -53,7 +54,7 @@ and p_var = { var_mutable : bool;
 			}
 and p_decl = Dvar of p_var desc | Dmethod of p_method desc
 and p_var_expr = Vvar of p_var desc | Vexpr of p_expr desc
-and p_bloc = p_var_expr desc list
+and p_bloc = p_var_expr list
 and p_class = { class_name : p_ident;
 				class_type_params : p_param_type_class desc list;
 				class_params : p_param desc list;

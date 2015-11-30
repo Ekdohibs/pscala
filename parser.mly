@@ -1,13 +1,13 @@
 %{
   open Ast
   open Parser_error
- let w pos x = { location = pos; desc = x }
- let sugar x = { location = Lexing.dummy_pos, Lexing.dummy_pos; desc = x }
- let check_int_bound s s2 =
-   if String.length s = String.length s2 then
-	 s <= s2
-   else
-	 String.length s < String.length s2
+  let w pos x = { location = pos; desc = x }
+  let sugar x = { location = Lexing.dummy_pos, Lexing.dummy_pos; desc = x }
+  let check_int_bound s s2 =
+	if String.length s = String.length s2 then
+	  s <= s2
+	else
+	  String.length s < String.length s2
 
 %}
 
@@ -219,8 +219,8 @@ bloc:
   		{ w ($startpos, $endpos) l }
 
 int_bloc:
-  | v = var   { w ($startpos, $endpos) (Vvar v) }
-  | e = expr  { w ($startpos, $endpos) (Vexpr e) }
+  | v = var   { (Vvar v) }
+  | e = expr  { (Vexpr e) }
 
 acces:
   | i = IDENT { w ($startpos, $endpos) (Avar i) }

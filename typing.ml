@@ -34,7 +34,7 @@ type t_env = {
 	}
 
 let type_s s = { t_type_name = s; t_arguments_type = [] }
-			   
+let sugar x = { location = Lexing.dummy_pos, Lexing.dummy_pos; desc = x }	   
 let rec print_type ff t =
   Format.fprintf ff "%s" t.t_type_name;
   match t.t_arguments_type with
@@ -54,7 +54,12 @@ let rec last l =
   | [] -> raise (Invalid_argument "last")
   | [x] -> x
   | h :: t -> last t
-							 
+
+let list_loc l =
+  match l with
+  | [] -> (Lexing.dummy_pos, Lexing.dummy_pos)
+  | x :: t -> (fst x.location, snd (last l).location)
+				   
 let rec arg_subst subst t =
   if Smap.mem t.t_type_name subst then
 	Smap.find t.t_type_name subst
@@ -168,18 +173,20 @@ let rec expr_type env e =
 		  print_type t2 print_type t), e.location));
 	 type_s "Unit"
   | Ecall (acc, t_params, args) -> assert false
-  | Enew _ -> assert false
+  | Enew (type_name, type_args, args) ->
+	 let created_type = { type_name = type_name;
+						  arguments_type = type_args } in
+	 let ct = p_to_t_type env { desc = created_type;
+								location = e.location }  in
+	 new_type env ct args e.location;
+	 ct
   | Eunary _ -> assert false
   | Ebinary _ -> assert false
   | Eif _ -> assert false
   | Ewhile _ -> assert false
   | Ereturn _ -> assert false
   | Eprint _ -> assert false
-  | Ebloc b -> assert false
-	(*  if b.desc = [] then
-	   type_s "Unit"
-	 else
-	   last (List.map (expr_type env) b.desc) *)
+  | Ebloc b -> bloc_type env b.desc
 
 and access_type env acc =
   match acc.desc with
@@ -202,6 +209,48 @@ and access_type env acc =
 	      ((fun ff -> Format.fprintf ff 
 		  "Type %a has no field %s" print_type t id), acc.location))
 
+and new_type env t args loc =
+  let c = Smap.find t.t_type_name env.env_classes in
+  let subst = class_subst c t.t_arguments_type in
+  if List.length args <> List.length c.t_class_params then
+	raise (Typing_error ((fun ff -> Format.fprintf ff
+	  "Incorrect number of arguments of constructor of type@, %a:@ expected %d, got %d"
+	  print_type t
+	  (List.length c.t_class_params)
+	  (List.length args)), loc));
+  List.iter2 (fun arg_type arg ->
+	let at = arg_subst subst arg_type in
+    let at2 = expr_type env arg in
+	if not (is_subtype env at2 at) then
+	  raise (Typing_error ((fun ff -> Format.fprintf ff
+	    "Incorrect types in constructor of@, %a:@ type@, %a@ is not a subtype of type@, %a"
+		print_type t print_type at2 print_type at), arg.location));  
+  ) c.t_class_params args
+
+and var_type env var =
+  match var.desc.var_type with
+  | None -> expr_type env var.desc.var_expr
+  | Some t ->
+	 let t = p_to_t_type env t in
+	 let t2 = expr_type env var.desc.var_expr in
+	 if not (is_subtype env t2 t) then
+	   raise (Typing_error ((fun ff -> Format.fprintf ff
+		 "Incorrect type declaration of variable:@ type@, %a@ is not a subtype of type@, %a"
+		 print_type t print_type t2), var.location));
+	 t
+
+and bloc_type env b =
+  match b with
+  |	[] -> type_s "Unit"
+  | [Vexpr e] -> expr_type env e
+  | Vexpr e :: bs -> ignore (expr_type env e); bloc_type env bs
+  | Vvar v :: bs ->
+	 let t = var_type env v in
+	 let nenv = { env with env_variables =
+	   Smap.add v.desc.var_name
+				(v.desc.var_mutable, t) env.env_variables } in
+	 bloc_type nenv bs
+	   
 let add_type_param_to_env env name constr =
   let extends = match constr with
 	  Tsubtype t -> t
@@ -237,6 +286,7 @@ let extend_env env param_types =
 
 let type_class env c =
   let class_env = ref env in
+  let class_name = c.desc.class_name in
   let (ce, tp) = extend_env !class_env
     (List.map (fun p -> p.desc.param_type) c.desc.class_type_params) in
   let type_params = List.map2
@@ -270,13 +320,16 @@ let type_class env c =
   class_env := { !class_env with
 				 env_variables = Smap.add "this"
 				   (false,
-					{ t_type_name = c.desc.class_name;
+					{ t_type_name = class_name;
 					  t_arguments_type =
 						List.map (fun (name, _, _) -> type_s name)
 								 type_params
 					} )
 				   !class_env.env_variables };
-  (* TODO: vérifier l'appel à new, et les déclarations, + la variance
+  new_type !class_env ext (snd c.desc.class_extends)
+		   (list_loc (snd c.desc.class_extends));
+  
+  (* TODO: vérifier l'appel les déclarations, + la variance
      Il faut pas oublier de mettre à jour non plus la classe Null
  *)
   { env with env_classes = Smap.add c.desc.class_name !cls env.env_classes }
