@@ -500,6 +500,9 @@ let variance_classe env classe =
 let type_class env c =
   let class_env = ref env in
   let class_name = c.desc.class_name in
+  if Smap.mem class_name env.env_classes then
+    raise (Typing_error ((fun ff -> Format.fprintf ff
+	"Class %s is already defined" class_name), c.location)) ; 
   let (ce, tp) = extend_env !class_env
     (List.map (fun p -> p.desc.param_type) c.desc.class_type_params) in
   let type_params = List.map2
@@ -507,11 +510,16 @@ let type_class env c =
 	tp c.desc.class_type_params in
   class_env := ce;
   let ext = p_to_t_type !class_env (fst c.desc.class_extends) in
-  if List.mem ext.t_type_name ["Any"; "AnyVal"; "Unit"; "Int"; "Boolean"; "String"; "Null"; "Nothing"] then
-	raise (Typing_error ((fun ff -> Format.fprintf ff
+  if List.mem ext.t_type_name 
+	    ["Any"; "AnyVal"; "Unit"; "Int"; "Boolean"; "String"; "Null"; "Nothing"] 
+		then raise (Typing_error ((fun ff -> Format.fprintf ff
 	  "Extending builtin class %s is not allowed"
 	  ext.t_type_name), c.location));
-  let c_ext = Smap.find ext.t_type_name !class_env.env_classes in
+  let c_ext = try Smap.find ext.t_type_name !class_env.env_classes 
+  with Not_found -> 
+    raise (Typing_error ((fun ff -> Format.fprintf ff
+	"Class %s can't be extended since it doesn't exist" axt.t_type_name), 
+	c.location)) in
   let dummy_cls = {
 	t_class_type_params = type_params;
 	t_class_params = [];
