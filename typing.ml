@@ -518,7 +518,7 @@ let type_class env c =
   let c_ext = try Smap.find ext.t_type_name !class_env.env_classes 
   with Not_found -> 
     raise (Typing_error ((fun ff -> Format.fprintf ff
-	"Class %s can't be extended since it doesn't exist" axt.t_type_name), 
+	"Class %s can't be extended since it doesn't exist" ext.t_type_name), 
 	c.location)) in
   let dummy_cls = {
 	t_class_type_params = type_params;
