@@ -384,15 +384,15 @@ and aux = function
   | Invariant     -> 0
 
 let variance_meth env name_t var m =
-  List.iter (fun a -> variance_type env name_t a (-1)*var) m.t_method_params ;
-  List.iter (fun a -> variance_type env name_t a var) m.t_method_type
+  List.iter (fun a -> variance_type env name_t a (-var)) m.t_method_params ;
+  variance_type env name_t m.t_method_type var
 
 let variance_sign env name_t classe x =
   Smap.iter (fun a (b,c) -> 
     if b then variance_type env name_t c 0 else variance_type env name_t c x)
     classe.t_class_vars ;
-  List.iter (fun a -> variance_type env name_t a x) classe.t_class_extends ;
-  List.iter (variance_meth env name_t x) classe.t_class_methods 
+  variance_type env name_t classe.t_class_extends x ;
+  Smap.iter (fun a b -> variance_meth env name_t x b) classe.t_class_methods 
 
 let variance env name_t classe i = match i with
   | 0  -> ()
