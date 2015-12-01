@@ -463,7 +463,8 @@ let rec variance_type env name_t typ var =
   match (typ.t_type_name = name_t) with
   | true  -> if var = 1 then () else failwith ("Bad variance of type "^name_t)
   | false -> 
-     let cl = Smap.find name_t env in
+     let cl = Smap.find typ.t_type_name env in
+	 debug "%s %a %a@." name_t print_class (" ", cl) print_type typ;
 	 List.iter2 (fun a (_,_,b) -> variance_type env name_t a ((aux b)*var))
 	    typ.t_arguments_type cl.t_class_type_params
 and aux = function

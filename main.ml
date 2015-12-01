@@ -59,5 +59,5 @@ let () =
 	   eprintf "%t@." e;
 	   exit 1
 	 end
-  | _ -> begin eprintf "Internal compiler error@."; exit 2 end
+(*  | _ -> begin eprintf "Internal compiler error@."; exit 2 end *)
 let () = exit 0
