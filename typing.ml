@@ -370,6 +370,39 @@ let extend_env env param_types =
 	 (name, constr)) param_types in
   (!eenv, pt)
 
+
+let rec variance_type env name_t typ var =
+  match (typ.t_type_name = name_t) with
+  | true  -> if var = 1 then () else failwith ("Bad variance of type "^name_t)
+  | false -> 
+     let cl = Smap.find name_t env in
+	 List.iter2 (fun a (_,_,b) -> variance_type env name_t a ((aux b)*var))
+	    typ.t_arguments_type cl.t_class_type_params
+and aux = function
+  | Covariant     -> 1
+  | Contravariant -> -1
+  | Invariant     -> 0
+
+let variance_meth env name_t var m =
+  List.iter (fun a -> variance_type env name_t a (-1)*var) m.t_method_params ;
+  List.iter (fun a -> variance_type env name_t a var) m.t_method_type
+
+let variance_sign env name_t classe x =
+  Smap.iter (fun a (b,c) -> 
+    if b then variance_type env name_t c 0 else variance_type env name_t c x)
+    classe.t_class_vars ;
+  List.iter (fun a -> variance_type env name_t a x) classe.t_class_extends ;
+  List.iter (variance_meth env name_t x) classe.t_class_methods 
+
+let variance env name_t classe i = match i with
+  | 0  -> ()
+  | x  -> variance_sign env name_t classe x
+
+let variance_classe env classe =
+  List.iter (fun (a,_,b) -> variance env a classe (aux b)) 
+      classe.t_class_type_params
+
+	
 let type_class env c =
   let class_env = ref env in
   let class_name = c.desc.class_name in
@@ -380,6 +413,10 @@ let type_class env c =
 	tp c.desc.class_type_params in
   class_env := ce;
   let ext = p_to_t_type !class_env (fst c.desc.class_extends) in
+  if List.mem ext.t_type_name ["Any"; "AnyVal"; "Unit"; "Int"; "Boolean"; "String"; "Null"; "Nothing"] then
+	raise (Typing_error ((fun ff -> Format.fprintf ff
+	  "Extending builtin class %s is not allowed"
+	  ext.t_type_name), c.location));
   let c_ext = Smap.find ext.t_type_name !class_env.env_classes in
   let dummy_cls = {
 	t_class_type_params = type_params;
@@ -462,7 +499,10 @@ let type_class env c =
   List.iter decl c.desc.class_decls;
   (* TODO: vérifier l'appel les déclarations, + la variance
      Il faut pas oublier de mettre à jour non plus la classe Null
- *)
+   *)
+  try variance_classe !class_env !cls with
+  | Failure s -> raise (Typing_error ((fun ff -> Format.fprintf ff
+	 "Variance error in class: %s" s), c.location));
   { env with env_classes = Smap.add class_name !cls env.env_classes;
 			 env_null_inherits = Sset.add class_name env.env_null_inherits}
 
@@ -490,39 +530,7 @@ List.fold_left (fun m (n, v) -> Smap.add n v m) Smap.empty
   (* Array, pour main *)
   "Array", { (make_base_class [] "Array")
 		   with t_class_type_params = [(" ", TAny, Invariant)] };
-]
-
-let rec variance_type env name_t typ var =
-  match (typ.t_type_name = name_t) with
-  | true  -> if var = 1 then () else failwith ("Bad variance of type "^name_t)
-  | false -> 
-     let cl = Smap.find name_t env in
-	 List.iter2 (fun a (_,_,b) -> variance_type env name_t a ((aux b)*var))
-	    typ.t_arguments_type cl.t_class_type_params
-and aux = function
-  | Covariant     -> 1
-  | Contravariant -> -1
-  | Invariant     -> 0
-
-let variance_meth env name_t var m =
-  List.iter (fun a -> variance_type env name_t a (-1)*var) m.t_method_params ;
-  List.iter (fun a -> variance_type env name_t a var) m.t_method_type
-
-let variance_sign env name_t classe x =
-  Smap.iter (fun a (b,c) -> 
-    if b then variance_type env name_t c 0 else variance_type env name_t c x)
-    classe.t_class_vars ;
-  List.iter (fun a -> variance_type env name_t a x) classe.t_class_extends ;
-  List.iter (variance_meth env name_t x) classe.t_class_methods 
-
-let variance env name_t classe i = match i with
-  | 0  -> ()
-  | x  -> variance_sign env name_t classe x
-
-let variance_classe env classe =
-  List.iter (fun (a,_,b) -> variance env a classe (aux b)) 
-      classe.t_class_type_params
-     
+]     
 
 let type_program prog =
   let base_env = { env_classes = base_classes;
