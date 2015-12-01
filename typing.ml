@@ -386,6 +386,9 @@ let rec expr_type env e =
 	   ) a_types effective_types;
 	 subst m.t_method_type
   | Enew (type_name, type_args, args) ->
+	 if type_name = "Main" then
+	   raise (Typing_error (s2f
+		 "Trying to instanciation singleton object Main", e.location));
 	 let created_type = { type_name = type_name;
 						  arguments_type = type_args } in
 	 let ct = p_to_t_type env { desc = created_type;
@@ -653,7 +656,7 @@ let type_class env c =
 	tp c.desc.class_type_params in
   class_env := ce;
   let ext = p_to_t_type !class_env (fst c.desc.class_extends) in
-  if List.mem ext.t_type_name 
+  if class_name <> "Main" && List.mem ext.t_type_name 
 	  [TGlobal "Any"; TGlobal "AnyVal"; TGlobal "Unit";
 	   TGlobal "Int"; TGlobal "Boolean"; TGlobal "String";
 	   TGlobal "Null"; TGlobal "Nothing"] 
@@ -812,8 +815,13 @@ let bc =
 let base_classes =
   List.fold_left (fun m (n, v) -> TNmap.add (TGlobal n) v m)
 				 TNmap.empty bc
-let bc_names = List.fold_left (fun m (n, _) -> Smap.add n (TGlobal n) m)
-							  Smap.empty bc
+
+(* On ajoute des noms fictifs avec des " " à la fin pour
+   les types générés par le parser *) 
+let bc_names = List.fold_left
+  (fun m (n, _) -> Smap.add (n ^ " ") (TGlobal n)
+				   (Smap.add n (TGlobal n) m))
+  Smap.empty bc
 
 let type_program prog =
   let base_env = {
@@ -826,5 +834,27 @@ let type_program prog =
   } in
   let env = ref base_env in
   List.iter (fun cls -> env := type_class !env cls) prog.prog_classes;
-  (* TODO: type main *)
-  ()
+  let main_class = { class_name = "Main";
+					 class_type_params = [];
+					 class_params = [];
+					 class_decls = prog.prog_main.desc;
+					 class_extends = (sugar { type_name =  "Any";
+											  arguments_type = [] },
+									  []) } in
+  env := type_class !env { desc = main_class;
+						   location = prog.prog_main.location };
+  let err s = raise (Typing_error (s2f s, prog.prog_main.location)) in
+  let main_class = TNmap.find (TGlobal "Main") !env.env_classes in
+  let main_method =
+	try Smap.find "main" main_class.t_class_methods
+	with Not_found ->
+	  err "Class Main does not have a \"main\" method"
+  in
+  if main_method.t_method_param_types <> [] then
+	err "Function main should not have any type parameter";
+  if main_method.t_method_params <>
+	   [{ t_type_name = TGlobal "Array";
+		  t_arguments_type = [type_s "String"] }] then
+	err "Function main has incorrect parameters";
+  if main_method.t_method_type <> (type_s "Unit") then
+	err "Function main has incorrect return type"

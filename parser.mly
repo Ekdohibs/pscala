@@ -62,7 +62,7 @@ classe:
 				 class_decls = ld;
 				 class_extends =
 				   match ic with
-				   | None -> (sugar { type_name = "AnyRef"; arguments_type = [] }), []
+				   | None -> (sugar { type_name = "AnyRef "; arguments_type = [] }), []
 				   | Some e -> e
 			   } }
 
@@ -102,7 +102,7 @@ methode:
 				method_param_types = lpt ;
 				method_params = lp ;
 				method_type = 
-				  sugar { type_name = "Unit" ; arguments_type = [] } ;
+				  sugar { type_name = "Unit " ; arguments_type = [] } ;
 				method_body = { location = blc.location ; desc = Ebloc blc } } }
   | b = boption(OVERRIDE) ; DEF ; i = IDENT ;
   		lpt = square_list(param_type) ;
@@ -156,7 +156,7 @@ arguments_type:
 
 classe_Main:
   | OBJECT ; MAIN ; LEFTBRACK ; l = separated_list(SEMICOLON, decl) ; RIGHTBRACK 
-      { l }
+      { w ($startpos, $endpos) l }
 
 expr:
   | e = expr_desc { w ($startpos, $endpos) e }
