@@ -40,7 +40,8 @@ let sugar x = { location = Lexing.dummy_pos, Lexing.dummy_pos; desc = x }
 
 (* let debug = Format.eprintf *)
 (* let debug x = Format.ifprintf Format.err_formatter x *)
-let debug x = if !typer_debug then Format.eprintf x else Format.ifprintf Format.err_formatter x
+let debug x = if !typer_debug then Format.eprintf x 
+   else Format.ifprintf Format.err_formatter x
 
 let print_list f ff l =
   match l with
@@ -159,8 +160,9 @@ let rec is_subtype env t1 t2 =
 	(t1.t_type_name = "Null" &&
 	   Sset.mem t2.t_type_name env.env_null_inherits) ||
 	(* Vraiment bon ça ? *)
-	(List.mem t1.t_type_name ["Boolean"; "Int"; "Unit"; "Null"; "String"; "Any"; "AnyRef"; "AnyVal"] && 
-	   Sset.mem t2.t_type_name c1.t_class_inherits) ||
+	(List.mem t1.t_type_name 
+	  ["Boolean"; "Int"; "Unit"; "Null"; "String"; "Any"; "AnyRef"; "AnyVal"] && 
+	  Sset.mem t2.t_type_name c1.t_class_inherits) ||
   begin
 	if t1.t_type_name = t2.t_type_name then
 	  let t_params = c1.t_class_type_params in
@@ -490,13 +492,12 @@ List.fold_left (fun m (n, v) -> Smap.add n v m) Smap.empty
 		   with t_class_type_params = [(" ", TAny, Invariant)] };
 ]
 
-(*
-
-let rec variance_type env name_t typ var = match typ.t_type_name = name_t with
-  | true  -> if var = 1 then () else raise exception "Mauvaise variance"
+let rec variance_type env name_t typ var =
+  match (typ.t_type_name = name_t) with
+  | true  -> if var = 1 then () else failwith ("Bad variance of type "^name_t)
   | false -> 
      let cl = Smap.find name_t env in
-	 List.iter2 (fun a (_,_,b) -> variance_type env name_t a (aux b)*var)
+	 List.iter2 (fun a (_,_,b) -> variance_type env name_t a ((aux b)*var))
 	    typ.t_arguments_type cl.t_class_type_params
 and aux = function
   | Covariant     -> 1
@@ -522,8 +523,6 @@ let variance_classe env classe =
   List.iter (fun (a,_,b) -> variance env a classe (aux b)) 
       classe.t_class_type_params
      
-
- *)
 
 let type_program prog =
   let base_env = { env_classes = base_classes;
