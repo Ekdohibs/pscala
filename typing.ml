@@ -497,8 +497,6 @@ let variance env name_t classe i = match i with
 
 let variance_classe env classe =
   List.iter (fun (a,_,b) -> variance env a classe (aux b)) 
-      classe.t_class_type_params ;
-  List.iter (fun (_,a,_) -> variance_constr env classe a)
       classe.t_class_type_params
 
 	
