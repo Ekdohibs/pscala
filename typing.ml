@@ -39,11 +39,6 @@ type t_env = {
 let type_s s = { t_type_name = s; t_arguments_type = [] }
 let sugar x = { location = Lexing.dummy_pos, Lexing.dummy_pos; desc = x }	   
 
-(* let debug = Format.eprintf *)
-(* let debug x = Format.ifprintf Format.err_formatter x *)
-let debug x = if !typer_debug then Format.eprintf x 
-   else Format.ifprintf Format.err_formatter x
-
 let print_list f ff l =
   match l with
   | [] -> ()
@@ -150,9 +145,9 @@ let class_subst c args =
   List.fold_left2 (fun s (name, _, _) arg -> Smap.add name arg s) Smap.empty c.t_class_type_params args
 	  
 let rec is_subtype env t1 t2 =
-  debug ">>> is_subtype <<<@\n";
-  debug "%a" print_env env;
-  debug "%a %a@\n" print_type t1 print_type t2;
+  Debug.debug ">>> is_subtype <<<@\n";
+  Debug.debug "%a" print_env env;
+  Debug.debug "%a %a@\n" print_type t1 print_type t2;
   if t1.t_type_name = "Nothing" then
 	true
   else
@@ -464,7 +459,8 @@ let rec variance_type env name_t typ var =
   | true  -> if var = 1 then () else failwith ("Bad variance of type "^name_t)
   | false -> 
      let cl = Smap.find typ.t_type_name env in
-	 debug "%s %a %a@." name_t print_class (" ", cl) print_type typ;
+	 Debug.debug "%s %a %a@." name_t
+				 print_class (" ", cl) print_type typ;
 	 List.iter2 (fun a (_,_,b) -> variance_type env name_t a ((aux b)*var))
 	    typ.t_arguments_type cl.t_class_type_params
 and aux = function

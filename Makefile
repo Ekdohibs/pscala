@@ -1,4 +1,4 @@
-CMO=lexer.cmo parser_error.cmo parser.cmo typing.cmo main.cmo
+CMO=debug.cmo lexer.cmo parser_error.cmo parser.cmo typing.cmo main.cmo
 GENERATED = lexer.ml parser.ml parser.mli
 FLAGS=-annot -g
 MENHIR_FLAGS=-v --infer

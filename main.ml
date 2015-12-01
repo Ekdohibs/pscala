@@ -6,7 +6,7 @@ let parse_only = ref false
 let spec =
   [
     "--parse-only", Arg.Set parse_only, "  stop after parsing";
-	"-g", Arg.Set Typing.typer_debug, "  print debug";
+	"-G", Arg.Set Debug.enable_debug, "  show debug messages";
   ]
 
 let file =
@@ -31,10 +31,11 @@ let report_error filename start_pos end_pos =
   let start_col = start_pos.pos_cnum - start_pos.pos_bol + 1 in
   let end_col = end_pos.pos_cnum - start_pos.pos_bol + 1 in
   eprintf "File \"%a\", line %d, characters %d-%d:\n" escape_string filename start_pos.pos_lnum start_col end_col
-
+		  
 let in_chan = open_in file
 let lexbuf = Lexing.from_channel in_chan
-let prog = try
+let prog = Debug.protect begin fun () ->
+  try
 	Parser.prog Lexer.token lexbuf
   with
   | Lexer.Lexing_error s | Parser_error.Parser_error s ->
@@ -47,9 +48,9 @@ let prog = try
 	   report_error file (Lexing.lexeme_start_p lexbuf) (Lexing.lexeme_end_p lexbuf);
 	   eprintf "Syntax error@."; exit 1
 	 end
-  | _ -> eprintf "Internal compiler error@."; exit 2
+end
 let () = if !parse_only then exit 0
-let () =
+let () = Debug.protect begin fun () ->
   try
 	Typing.type_program prog
   with
@@ -59,5 +60,5 @@ let () =
 	   eprintf "%t@." e;
 	   exit 1
 	 end
-(*  | _ -> begin eprintf "Internal compiler error@."; exit 2 end *)
+end
 let () = exit 0
