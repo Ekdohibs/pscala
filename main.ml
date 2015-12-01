@@ -57,7 +57,7 @@ let () = Debug.protect begin fun () ->
   | Typing.Typing_error (e, (startpos, endpos)) ->
 	 begin
 	   report_error file startpos endpos;
-	   eprintf "%t@." e;
+	   eprintf "Typing error:@ %t@." e;
 	   exit 1
 	 end
 end

@@ -7,8 +7,8 @@ let typer_debug = ref false
 					  
 type t_type_name =
   | TGlobal of p_ident
-  | TClassTvar of p_ident * int
-  | TMethodTvar of p_ident * int
+  | TClassTvar of p_ident * int * int
+  | TMethodTvar of p_ident * int * int
 
 module TypeName = struct
   type t = t_type_name
@@ -70,13 +70,15 @@ let print_type_name ff tn =
   if !Debug.enable_debug then
 	match tn with
 	| TGlobal s -> Format.fprintf ff "%s" s
-	| TClassTvar (s, n) -> Format.fprintf ff "!%s" s
-	| TMethodTvar (s, n) -> Format.fprintf ff "@@%s" s
+	| TClassTvar (s, n, level) ->
+	   Format.fprintf ff "!%s(#%d,%d)" s n level
+	| TMethodTvar (s, n, level) ->
+	   Format.fprintf ff "@@%s(#%d,%d)" s n level
   else
 	match tn with
 	| TGlobal s -> Format.fprintf ff "%s" s
-	| TClassTvar (s, n) -> Format.fprintf ff "%s" s
-	| TMethodTvar (s, n) -> Format.fprintf ff "%s" s
+	| TClassTvar (s, n, level) -> Format.fprintf ff "%s" s
+	| TMethodTvar (s, n, level) -> Format.fprintf ff "%s" s
 
 										 
 let rec print_type ff t =
@@ -171,20 +173,34 @@ let list_loc l =
   | [] -> (Lexing.dummy_pos, Lexing.dummy_pos)
   | x :: t -> (fst x.location, snd (last l).location)
 
+let decr_level = function
+  | TGlobal s -> TGlobal s
+  | TClassTvar (s, n, lev) -> TClassTvar (s, n, max 0 (lev - 1))
+  | TMethodTvar (s, n, lev) -> TMethodTvar (s, n, max 0 (lev - 1))
+										  
+let incr_level = function
+  | TGlobal s -> TGlobal s
+  | TClassTvar (s, n, lev) -> TClassTvar (s, n, lev + 1)
+  | TMethodTvar (s, n, lev) -> TMethodTvar (s, n, lev + 1)
+										  
+let rec incr_level_t t =
+  { t_type_name = incr_level t.t_type_name;
+	t_arguments_type = List.map incr_level_t t.t_arguments_type }
+										  
 let rec class_subst subst t =
   match t.t_type_name with
-  | TClassTvar (_, n) -> List.nth subst n
+  | TClassTvar (_, n, 0) -> List.nth subst n
   | _ -> 
-	 { t_type_name = t.t_type_name;
+	 { t_type_name = decr_level t.t_type_name;
 	   t_arguments_type = List.map (class_subst subst)
 								   t.t_arguments_type }
 
 let rec method_subst subst_m subst_c t =
   match t.t_type_name with
-  | TClassTvar (_, n) -> List.nth subst_c n
-  | TMethodTvar (_, n) -> List.nth subst_m n
+  | TClassTvar (_, n, 0) -> List.nth subst_c n
+  | TMethodTvar (_, n, 0) -> List.nth subst_m n
   | _ -> 
-	 { t_type_name = t.t_type_name;
+	 { t_type_name = decr_level t.t_type_name;
 	   t_arguments_type = List.map (method_subst subst_m subst_c)
 								   t.t_arguments_type }
 
@@ -206,7 +222,7 @@ let method_class_subst subst m =
 let rec is_subtype env t1 t2 =
   Debug.debug ">>> is_subtype <<<@\n";
   Debug.debug "%a" print_env env;
-  Debug.debug "%a %a@\n" print_type t1 print_type t2;
+  Debug.debug "%a %a@." print_type t1 print_type t2;
   if t1.t_type_name = TGlobal "Nothing" then
 	true
   else
@@ -231,8 +247,10 @@ let rec is_subtype env t1 t2 =
 				   ) tps t_params
 	else
 	  let ct = c1.t_class_extends in
-	  let c = TNmap.find ct.t_type_name env.env_classes in
+	  Debug.debug "%a@." print_type ct;
+	  let c = TNmap.find (decr_level ct.t_type_name) env.env_classes in
 	  let subst = t1.t_arguments_type in
+	  Debug.debug "%a@\n@." print_class (ct.t_type_name, c);
 	  let ct_subst = class_subst subst ct in
 	  if TNset.mem t2.t_type_name c.t_class_inherits 
 		   && is_subtype env ct_subst t2 then
@@ -243,6 +261,22 @@ let rec is_subtype env t1 t2 =
 					   (TNmap.find t2.t_type_name env.env_constraints))
 	  else false
   end
+
+let check_bounds env subst t cstr loc =
+  match cstr with
+	TAny -> ()
+  | Tsubtype t2 ->
+	 let nt = subst t2 in
+	 if not (is_subtype env t nt) then
+	   raise (Typing_error ((fun ff -> Format.fprintf ff 
+		 "Type argument does not comply to bounds:@ type@, %a@ should be a subtype of type@ %a" 
+		 print_type t print_type nt), loc))
+  | Tsupertype t2 ->
+	 let nt = subst t2 in
+	 if not (is_subtype env nt t) then
+	   raise (Typing_error ((fun ff -> Format.fprintf ff 
+		 "Type argument does not comply to bounds:@ type@, %a@ should be a supertype of type@ %a" 
+		 print_type t print_type nt), loc))
 	
 let rec p_to_t_type env t =
   let args = t.desc.arguments_type in
@@ -263,24 +297,7 @@ let rec p_to_t_type env t =
   let t_args = List.map (p_to_t_type env) t.desc.arguments_type in
   List.iter2
 	(fun (tt, typ) (_, cstr, _) ->
-	 begin
-	   match cstr with
-		 TAny -> ()
-	   | Tsubtype t2 ->
-		  let nt = class_subst t_args t2 in
-		  if not (is_subtype env typ nt) then
-		  raise (Typing_error 
-		     ((fun ff -> Format.fprintf ff 
-			 "Type argument does not comply to bounds:@ type@, %a@ should be a subtype of type@ %a" 
-			 print_type typ print_type nt), tt.location))
-	   | Tsupertype t2 ->
-		  let nt = class_subst t_args t2 in
-		  if not (is_subtype env nt typ) then
-		  raise (Typing_error 
-		     ((fun ff -> Format.fprintf ff 
-			 "Type argument does not comply to bounds:@ type@, %a@ should be a supertype of type@ %a" 
-			 print_type typ print_type nt), tt.location))
-	 end
+	 check_bounds env (class_subst t_args) typ cstr tt.location
 	) (List.combine t.desc.arguments_type t_args) p_types;
   { t_type_name = ct;
 	t_arguments_type = t_args
@@ -346,14 +363,19 @@ let rec expr_type env e =
                  "Method %s of type@, %a@ does not exist"
 				 name print_type t1), e.location))
 	 in
-	 (*let c_subst = class_subst c t1.t_arguments_type in
-	 let m_subst = method_subst m arg_types in
-	 let effective_types = List.map (fun t ->
-	   arg_subst c_subst (arg_subst m_subst t)) m.t_method_params in *)
 	 let subst = method_subst arg_types t1.t_arguments_type in
 	 let effective_types = List.map subst m.t_method_params in 
 	 if List.length effective_types <> List.length args then
-	   failwith "TODO";
+	   raise (Typing_error ((fun ff -> Format.fprintf ff
+		 "Incorrect number of arguments to method %s of class %a:@ expected %d, got %d"
+		 name print_type_name t1.t_type_name
+		 (List.length effective_types) (List.length args)),
+							e.location));
+	 List.iter2 (fun (_, constr) (t, tt) ->
+				 check_bounds env subst t constr tt.location
+				) m.t_method_param_types
+				(List.combine arg_types t_params);
+
 	 let a_types = List.map (fun arg ->
 	   (expr_type env arg, arg.location)) args in
 	 List.iter2 (fun (t, loc) t2 ->
@@ -524,7 +546,7 @@ and bloc_type env b =
 
 let type_name t =
   match t with
-  | TGlobal s | TMethodTvar (s, _) | TClassTvar (s, _) -> s
+  | TGlobal s | TMethodTvar (s, _, _) | TClassTvar (s, _, _) -> s
 			   
 let add_type_param_to_env env name constr =
   let extends = match constr with
@@ -538,7 +560,7 @@ let add_type_param_to_env env name constr =
 	  t_class_params = [];
 	  t_class_vars = class_ext.t_class_vars;
 	  t_class_methods = class_ext.t_class_methods;
-	  t_class_extends = extends;
+	  t_class_extends = incr_level_t extends;
 	  t_class_inherits = TNset.add name class_ext.t_class_inherits
 	} env.env_classes in
   { env_cnames = Smap.add (type_name name) name env.env_cnames;
@@ -554,9 +576,9 @@ let add_type_param_to_env env name constr =
 
 let extend_env env param_types is_method =
   let u name i = if is_method then
-				   TMethodTvar (name, i)
+				   TMethodTvar (name, i, 0)
 				 else
-				   TClassTvar (name, i)
+				   TClassTvar (name, i, 0)
   in
   let eenv = ref env in
   let pt = List.mapi
@@ -614,7 +636,7 @@ let variance env name_t classe i = match i with
 
 let variance_classe env classe =
   List.iteri (fun i (a,_,b) ->
-	 variance env (TClassTvar (a, i)) classe (aux b)) 
+	 variance env (TClassTvar (a, i, 0)) classe (aux b)) 
 			 classe.t_class_type_params
 
 let type_class env c =
@@ -644,7 +666,6 @@ let type_class env c =
 	"Class %s can't be extended since it doesn't exist" ext.t_type_name), 
 	c.location)) *)
   let c_ext = TNmap.find ext.t_type_name !class_env.env_classes in
-  (* let ext_subst = class_subst c_ext ext.t_arguments_type in *)
   let dummy_cls = {
 	t_class_type_params = type_params;
 	t_class_params = [];
@@ -682,13 +703,22 @@ let type_class env c =
 					env_variables = Smap.add par_name (false, par_type)
 											 !class_env.env_variables }
 	) params;
+  (*
+  List.iter
+	(fun (par_name, par_type) ->
+	 cls := { !cls with
+			  t_class_vars = Smap.add par_name (false, par_type)
+									  !cls.t_class_vars }
+	) params;
+  update_class_env ();
+  *)
   class_env := { !class_env with
 				 env_variables = Smap.add "this"
 				   (false,
 					{ t_type_name = (TGlobal class_name);
 					  t_arguments_type =
 						List.mapi (fun i (name, _, _) ->
-						  { t_type_name = TClassTvar (name, i);
+						  { t_type_name = TClassTvar (name, i, 0);
 							t_arguments_type = [] })
 								 type_params
 					} )
@@ -696,6 +726,10 @@ let type_class env c =
   new_type !class_env ext (snd c.desc.class_extends)
 		   (list_loc (snd c.desc.class_extends));
   let decl_var v =
+	if Smap.mem v.desc.var_name !cls.t_class_vars then
+	  raise (Typing_error ((fun ff -> Format.fprintf ff
+		"Trying to redefine field %s of class %s, which is already defined"
+		v.desc.var_name class_name), v.location));
 	let t = var_type !class_env v in
 	cls := { !cls with t_class_vars =
 				   Smap.add v.desc.var_name
@@ -720,7 +754,7 @@ let type_class env c =
 	let m_env = ref m_env in
 	List.iteri (fun i (a, b) ->
 				m_env := add_type_param_to_env !m_env
-							 (TMethodTvar (a, i)) b) tp;
+							 (TMethodTvar (a, i, 0)) b) tp;
 	let m_env = ref { !m_env with env_classes =
 		  TNmap.add (TGlobal class_name) !cls !m_env.env_classes } in
 	List.iter2 (fun p t -> m_env := { !m_env with env_variables =
