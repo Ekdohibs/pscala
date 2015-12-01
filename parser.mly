@@ -72,8 +72,8 @@ int_class:
 		 { (t, le) }
 
 decl:
-  | v = var { w ($startpos, $endpos) (Dvar v) }
-  | m = methode { w ($startpos, $endpos) (Dmethod m) }
+  | v = var { (Dvar v) }
+  | m = methode { (Dmethod m) }
 
 var:
   | VAR ; i = IDENT ; t = option(preceded(COLON, type_scala)) ; EQUAL ; e = expr

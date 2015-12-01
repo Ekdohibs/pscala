@@ -58,9 +58,9 @@ and p_bloc = p_var_expr list
 and p_class = { class_name : p_ident;
 				class_type_params : p_param_type_class desc list;
 				class_params : p_param desc list;
-				class_decls : p_decl desc list;
+				class_decls : p_decl list;
 				class_extends : (p_type desc) * (p_expr desc list)
 			  }
 and p_prog = { prog_classes : p_class desc list;
-			   prog_main : p_decl desc list
+			   prog_main : p_decl list
 			 }

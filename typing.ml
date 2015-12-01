@@ -3,7 +3,8 @@ exception Typing_error of (Format.formatter -> unit) * (Lexing.position * Lexing
 
 module Smap = Map.Make(String)
 module Sset = Set.Make(String)
-
+let typer_debug = ref false
+					  
 type t_type = {
   t_type_name : p_ident;
   t_arguments_type : t_type list;
@@ -31,21 +32,97 @@ type t_env = {
   env_classes : t_class Smap.t; (* Les classes de l'environnement; inclut les types sans paramètres *)
   env_constraints : t_type Smap.t; (* Les contraintes de type *)
   env_variables : (bool * t_type) Smap.t; (* Les variables, mutables ou non *)
-	}
+  env_null_inherits : Sset.t;
+}
 
 let type_s s = { t_type_name = s; t_arguments_type = [] }
 let sugar x = { location = Lexing.dummy_pos, Lexing.dummy_pos; desc = x }	   
+
+(* let debug = Format.eprintf *)
+(* let debug x = Format.ifprintf Format.err_formatter x *)
+let debug x = if !typer_debug then Format.eprintf x else Format.ifprintf Format.err_formatter x
+
+let print_list f ff l =
+  match l with
+  | [] -> ()
+  | x :: s -> f ff x; List.iter (Format.fprintf ff ",@ %a" f) s
+			  
 let rec print_type ff t =
   Format.fprintf ff "%s" t.t_type_name;
   match t.t_arguments_type with
 	[] -> ()
-  | t1 :: ts ->
+  | _ ->
 	 Format.open_hovbox 2;
 	 Format.fprintf ff "[";
-	 print_type ff t1;
-	 List.iter (Format.fprintf ff ",@, %a" print_type) ts;
+	 print_list print_type ff t.t_arguments_type;
 	 Format.close_box ();
 	 Format.fprintf ff "]"
+
+let print_constraint ff c =
+  match c with
+	TAny -> ()
+  | Tsubtype t -> Format.fprintf ff " <: %a" print_type t
+  | Tsupertype t -> Format.fprintf ff " >: %a" print_type t
+
+let print_method_ptype ff (t, c) =
+  Format.fprintf ff "%s%a" t print_constraint c
+
+let print_variance ff = function
+  | Invariant -> ()
+  | Covariant -> Format.fprintf ff "+"
+  | Contravariant -> Format.fprintf ff "-"
+				 
+let print_class_ptype ff (t, c, v) =
+  Format.fprintf ff "%a%s%a" print_variance v t print_constraint c
+				 
+let print_method ff (name, m) =
+  Format.open_hovbox 2; Format.fprintf ff "def %s" name;
+  if m.t_method_param_types <> [] then
+	Format.fprintf ff "[%a]" (print_list print_method_ptype)
+				   m.t_method_param_types;
+  Format.fprintf ff "(%a)" (print_list print_type)
+				 m.t_method_params;
+  Format.fprintf ff " : %a@\n" print_type m.t_method_type;
+  Format.close_box ()
+
+let print_var ff (name, (mut, t)) =
+  Format.open_hovbox 2;
+  Format.fprintf ff "%s %s" (if mut then "var" else "val") name;
+  Format.fprintf ff " : %a@\n" print_type t;
+  Format.close_box ()
+
+let p_string ff s = Format.fprintf ff "%s" s
+				   
+let print_class ff (name, c) =
+  Format.open_hovbox 2; Format.fprintf ff "class %s" name;
+  if c.t_class_type_params <> [] then
+	Format.fprintf ff "[%a]" (print_list print_class_ptype)
+				   c.t_class_type_params;
+  Format.fprintf ff "(%a)@\n" (print_list print_type)
+				 c.t_class_params;
+  Format.fprintf ff "extends %a@\n" print_type c.t_class_extends;
+  Format.fprintf ff "inherits {%a}@\n" (print_list p_string)
+				 (Sset.elements c.t_class_inherits);
+  Format.fprintf ff "{@\n";
+  Format.open_hovbox 2;
+  Smap.iter (fun name m -> Format.fprintf ff "%a@\n"
+		 print_method (name, m)) c.t_class_methods;
+  Smap.iter (fun name v -> Format.fprintf ff "%a@\n"
+		 print_var (name, v)) c.t_class_vars;
+  Format.close_box ();
+  Format.fprintf ff "}@\n";
+  Format.close_box ()
+
+let print_env ff env =
+  Smap.iter (fun name c -> Format.fprintf ff "%a@\n"
+     print_class (name, if name = "Null" then
+						  { c with t_class_inherits = Sset.union c.t_class_inherits env.env_null_inherits }
+						else c)) env.env_classes;
+  Smap.iter (fun name c -> Format.fprintf ff "%s >: %a@\n"
+	 name print_type c) env.env_constraints;
+  Smap.iter (fun name var -> Format.fprintf ff "%a@\n"
+	 print_var (name, var)) env.env_variables
+
 
 let s2f s ff = Format.fprintf ff "%s" s
 
@@ -71,12 +148,18 @@ let class_subst c args =
   List.fold_left2 (fun s (name, _, _) arg -> Smap.add name arg s) Smap.empty c.t_class_type_params args
 	  
 let rec is_subtype env t1 t2 =
+  debug ">>> is_subtype <<<@\n";
+  debug "%a" print_env env;
+  debug "%a %a@\n" print_type t1 print_type t2;
   if t1.t_type_name = "Nothing" then
 	true
   else
 	let c1 = Smap.find t1.t_type_name env.env_classes in
 	let c2 = Smap.find t2.t_type_name env.env_classes in 
 	(t1.t_type_name = "Null" &&
+	   Sset.mem t2.t_type_name env.env_null_inherits) ||
+	(* Vraiment bon ça ? *)
+	(List.mem t1.t_type_name ["Boolean"; "Int"; "Unit"; "Null"; "String"; "Any"; "AnyRef"; "AnyVal"] && 
 	   Sset.mem t2.t_type_name c1.t_class_inherits) ||
   begin
 	if t1.t_type_name = t2.t_type_name then
@@ -97,7 +180,7 @@ let rec is_subtype env t1 t2 =
 		   && is_subtype env ct_subst t2 then
 		true
 	  else if Smap.mem t2.t_type_name env.env_constraints then
-		not (Sset.mem t1.t_type_name c2.t_class_inherits) 
+		not (Sset.mem t2.t_type_name c1.t_class_inherits) 
 		   && (is_subtype env t1 (Smap.find t2.t_type_name env.env_constraints))
 	  else false
   end
@@ -236,7 +319,7 @@ and var_type env var =
 	 if not (is_subtype env t2 t) then
 	   raise (Typing_error ((fun ff -> Format.fprintf ff
 		 "Incorrect type declaration of variable:@ type@, %a@ is not a subtype of type@, %a"
-		 print_type t print_type t2), var.location));
+		 print_type t2 print_type t), var.location));
 	 t
 
 and bloc_type env b =
@@ -264,14 +347,15 @@ let add_type_param_to_env env name constr =
 	  t_class_vars = class_ext.t_class_vars;
 	  t_class_methods = class_ext.t_class_methods;
 	  t_class_extends = extends;
-	  t_class_inherits = Sset.add extends.t_type_name class_ext.t_class_inherits
+	  t_class_inherits = Sset.add name class_ext.t_class_inherits
 	} env.env_classes in
 	  { env_classes = new_classes;
 		env_constraints =
 		  (match constr with
 			Tsupertype t -> Smap.add name t env.env_constraints
 		  | _ -> env.env_constraints);
-		env_variables = env.env_variables
+		env_variables = env.env_variables;
+		env_null_inherits = env.env_null_inherits;
 	  }
 
 let extend_env env param_types =
@@ -301,10 +385,10 @@ let type_class env c =
 	t_class_vars = c_ext.t_class_vars;
 	t_class_methods = c_ext.t_class_methods;
 	t_class_extends = ext;
-	t_class_inherits = Sset.add ext.t_type_name c_ext.t_class_inherits
+	t_class_inherits = Sset.add class_name c_ext.t_class_inherits
   } in
   let cenv = { !class_env with env_classes = 
-        Smap.add c.desc.class_name dummy_cls !class_env.env_classes } in
+        Smap.add class_name dummy_cls !class_env.env_classes } in
   let params = List.map (fun param -> 
         param.desc.par_name, p_to_t_type cenv param.desc.par_type) 
         c.desc.class_params in
@@ -314,6 +398,8 @@ let type_class env c =
 	class_env := { !class_env with env_classes =
 	  Smap.add class_name !cls env_classes }
   in
+  class_env := { !class_env with env_null_inherits =
+	  Sset.add class_name !class_env.env_null_inherits };
   update_class_env ();
   List.iter
 	(fun (par_name, par_type) ->
@@ -341,13 +427,42 @@ let type_class env c =
   in
   let decl_method m =
 	(* TODO: check override *)
-	let method_env = extend_env !class_env param_types in
-	()
+	let (m_env, tp) = extend_env !class_env m.desc.method_param_types in
+	let m_types = List.map
+	  (fun p -> p_to_t_type m_env p.desc.par_type)
+	  m.desc.method_params in
+	let m_type = p_to_t_type m_env m.desc.method_type in
+	let tm = { t_method_param_types = tp;
+			   t_method_params = m_types;
+			   t_method_type = m_type } in
+	cls := { !cls with t_class_methods =
+					Smap.add m.desc.method_name
+					tm !cls.t_class_methods };
+	update_class_env ();
+	let m_env = List.fold_left
+	  (fun e (a, b) -> add_type_param_to_env e a b) !class_env
+	  tp in
+	let m_env = ref { m_env with env_classes =
+			   Smap.add class_name !cls m_env.env_classes } in
+	List.iter2 (fun p t -> m_env := { !m_env with env_variables =
+		   Smap.add p.desc.par_name (false, t) !m_env.env_variables })
+			   m.desc.method_params m_types;
+	let t = expr_type !m_env m.desc.method_body in
+	if not (is_subtype !m_env t m_type) then
+	  raise (Typing_error ((fun ff -> Format.fprintf ff
+	  "Incorrect method return value:@ type@, %a@ is not a subtype of type@, %a"
+	  print_type t print_type m_type), m.location))
   in
+  let decl = function
+	| Dvar v -> decl_var v
+	| Dmethod m -> decl_method m
+  in
+  List.iter decl c.desc.class_decls;
   (* TODO: vérifier l'appel les déclarations, + la variance
      Il faut pas oublier de mettre à jour non plus la classe Null
  *)
-  { env with env_classes = Smap.add c.desc.class_name !cls env.env_classes }
+  { env with env_classes = Smap.add class_name !cls env.env_classes;
+			 env_null_inherits = Sset.add class_name env.env_null_inherits}
 
 let make_base_class inherits extends =
   { t_class_type_params = [];
@@ -355,7 +470,7 @@ let make_base_class inherits extends =
 	t_class_vars = Smap.empty;
 	t_class_methods = Smap.empty;
 	t_class_inherits = List.fold_left 
-	   (fun u v -> Sset.add v u) Sset.empty inherits;
+	   (fun u v -> Sset.add v u) (Sset.singleton extends) inherits;
 	t_class_extends = type_s extends }
 	
 let base_classes =
@@ -374,6 +489,8 @@ List.fold_left (fun m (n, v) -> Smap.add n v m) Smap.empty
   "Array", { (make_base_class [] "Array")
 		   with t_class_type_params = [(" ", TAny, Invariant)] };
 ]
+
+(*
 
 let rec variance_type env name_t typ var = match typ.t_type_name = name_t with
   | true  -> if var = 1 then () else raise exception "Mauvaise variance"
@@ -406,10 +523,14 @@ let variance_classe env classe =
       classe.t_class_type_params
      
 
+ *)
+
 let type_program prog =
   let base_env = { env_classes = base_classes;
 				   env_constraints = Smap.empty;
-				   env_variables = Smap.empty } in
+				   env_variables = Smap.empty;
+				   env_null_inherits = Sset.empty;
+				 } in
   let env = ref base_env in
   List.iter (fun cls -> env := type_class !env cls) prog.prog_classes;
   (* TODO: type main *)

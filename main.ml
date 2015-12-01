@@ -6,6 +6,7 @@ let parse_only = ref false
 let spec =
   [
     "--parse-only", Arg.Set parse_only, "  stop after parsing";
+	"-g", Arg.Set Typing.typer_debug, "  print debug";
   ]
 
 let file =
