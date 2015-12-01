@@ -234,7 +234,20 @@ let constraint_to_t env c =
   | Any -> TAny
   | Subtype t -> Tsubtype (p_to_t_type env t)
   | Supertype t -> Tsupertype (p_to_t_type env t)
-	
+
+let check_int t loc =
+  if t.t_type_name <> "Int" then
+	raise (Typing_error ((fun ff -> Format.fprintf ff
+	  "Trying to perform arithmetic on type@, %a"
+	  print_type t), loc))
+
+let check_bool t loc =
+  if t.t_type_name <> "Boolean" then
+	raise (Typing_error ((fun ff -> Format.fprintf ff
+	  "Trying to perform boolean logic on type@, %a"
+	  print_type t), loc))
+
+		  
 let rec expr_type env e =
   match e.desc with
   | Eint _ -> type_s "Int"
@@ -265,12 +278,83 @@ let rec expr_type env e =
 								location = e.location }  in
 	 new_type env ct args e.location;
 	 ct
-  | Eunary _ -> assert false
-  | Ebinary _ -> assert false
-  | Eif _ -> assert false
-  | Ewhile _ -> assert false
-  | Ereturn _ -> assert false
-  | Eprint _ -> assert false
+  | Eunary (Uminus, e1) ->
+	 check_int (expr_type env e1) e.location; type_s "Int"
+  | Eunary (Unot, e1) ->
+	 check_bool (expr_type env e1) e.location; type_s "Boolean"
+  | Ebinary ((Bplus | Bminus | Btimes | Bdiv | Bmod), e1, e2) ->
+	 check_int (expr_type env e1) e.location;
+	 check_int (expr_type env e2) e.location;
+	 type_s "Int"
+  | Ebinary ((Bequal | Bnotequal | Blt | Bgt | Ble | Bge), e1, e2) ->
+	 check_int (expr_type env e1) e.location;
+	 check_int (expr_type env e2) e.location;
+	 type_s "Boolean"
+  | Ebinary ((Band | Bor), e1, e2) ->
+	 check_bool (expr_type env e1) e.location;
+	 check_bool (expr_type env e2) e.location;
+	 type_s "Boolean"
+  | Ebinary ((Beq | Bne), e1, e2) ->
+	 let t1 = expr_type env e1 in
+	 let t2 = expr_type env e2 in
+	 let c t = 
+	   if not (is_subtype env t (type_s "AnyRef")) then
+		 raise (Typing_error ((fun ff -> Format.fprintf ff
+		   "Trying to test equality of type@, %a,@ which is not a subtype of AnyRef"
+		   print_type t), e.location)) in
+	 c t1; c t2;
+	 type_s "Boolean";
+  | Eif (e1, e2, e3) ->
+	 let t1 = expr_type env e1 in
+	 if t1.t_type_name <> "Boolean" then
+	   raise (Typing_error ((fun ff -> Format.fprintf ff
+		"Trying to use a value of type@, %a@ inside a condition."
+		print_type t1), e.location));
+	 let t2 = expr_type env e2 in
+	 let t3 = expr_type env e3 in
+	 if is_subtype env t2 t3 then
+	   t3
+	 else if is_subtype env t3 t2 then
+	   t2
+	 else
+	   raise (Typing_error ((fun ff -> Format.fprintf ff
+		 "Neither of types of the \"then\" branch:@, %a@ and of the \"else\" branch:@, %a@ is a subtype of the other."
+		 print_type t2 print_type t2), e.location));
+  | Ewhile (e1, e2) ->
+	 let t1 = expr_type env e1 in
+	 if t1.t_type_name <> "Boolean" then
+	   raise (Typing_error ((fun ff -> Format.fprintf ff
+		"Trying to use a value of type@ %a@ inside condition of a while loop"
+		print_type t1), e.location));
+	 ignore (expr_type env e2);
+	 type_s "Unit";
+  | Ereturn None ->
+	 (match env.env_return_type with
+	   None -> raise (Typing_error
+		(s2f "Trying to use return outside of a method", e.location))
+	 | Some t ->
+		if not (is_subtype env (type_s "Unit") t) then
+		  raise (Typing_error ((fun ff -> Format.fprintf ff
+		    "Trying to use return without argument in a method returning type %a:@ Unit is not a subtype of return type."
+			print_type t), e.location)));
+		(type_s "Nothing")
+  | Ereturn (Some e1) ->
+	 (match env.env_return_type with
+	   None -> raise (Typing_error
+		(s2f "Trying to use return outside of a method", e.location))
+	  | Some t ->
+		 let t1 = expr_type env e1 in
+		if not (is_subtype env t1 t) then
+		  raise (Typing_error ((fun ff -> Format.fprintf ff
+		    "Error in return: trying to return a value of type %a,@ which is not a subtype of return type %a."
+			print_type t1 print_type t), e.location)));
+		(type_s "Nothing")
+  | Eprint e1 -> let t1 = expr_type env e1 in
+	 if not (List.mem t1.t_type_name ["Int"; "String"]) then
+	   raise (Typing_error ((fun ff -> Format.fprintf ff
+		 "Error in print: trying to print a value of type %a,@ which is not an Int nor a String."
+		 print_type t1), e.location));
+	 type_s "Unit";
   | Ebloc b -> bloc_type env b.desc
 
 and access_type env acc =
@@ -288,12 +372,15 @@ and access_type env acc =
   | Afield (e, id) ->
 	 let t = expr_type env e in
 	 let c = Smap.find t.t_type_name env.env_classes in
-	 try Smap.find id c.t_class_vars
+	 let (mut, tt) = try Smap.find id c.t_class_vars
 	 with Not_found ->
 	   raise (Typing_error 
 	      ((fun ff -> Format.fprintf ff 
 		  "Type %a has no field %s" print_type t id), acc.location))
-
+	 in
+	 let subst = class_subst c t.t_arguments_type in
+	 (mut, arg_subst subst tt)
+			 
 and new_type env t args loc =
   let c = Smap.find t.t_type_name env.env_classes in
   let subst = class_subst c t.t_arguments_type in
