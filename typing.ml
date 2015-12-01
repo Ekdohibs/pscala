@@ -33,6 +33,7 @@ type t_env = {
   env_constraints : t_type Smap.t; (* Les contraintes de type *)
   env_variables : (bool * t_type) Smap.t; (* Les variables, mutables ou non *)
   env_null_inherits : Sset.t;
+  env_return_type : t_type option;
 }
 
 let type_s s = { t_type_name = s; t_arguments_type = [] }
@@ -156,7 +157,6 @@ let rec is_subtype env t1 t2 =
 	true
   else
 	let c1 = Smap.find t1.t_type_name env.env_classes in
-	let c2 = Smap.find t2.t_type_name env.env_classes in 
 	(t1.t_type_name = "Null" &&
 	   Sset.mem t2.t_type_name env.env_null_inherits) ||
 	(* Vraiment bon ça ? *)
@@ -358,6 +358,7 @@ let add_type_param_to_env env name constr =
 		  | _ -> env.env_constraints);
 		env_variables = env.env_variables;
 		env_null_inherits = env.env_null_inherits;
+		env_return_type = None;
 	  }
 
 let extend_env env param_types =
@@ -486,6 +487,7 @@ let type_class env c =
 	List.iter2 (fun p t -> m_env := { !m_env with env_variables =
 		   Smap.add p.desc.par_name (false, t) !m_env.env_variables })
 			   m.desc.method_params m_types;
+	m_env := { !m_env with env_return_type = Some m_type };
 	let t = expr_type !m_env m.desc.method_body in
 	if not (is_subtype !m_env t m_type) then
 	  raise (Typing_error ((fun ff -> Format.fprintf ff
@@ -500,9 +502,9 @@ let type_class env c =
   (* TODO: vérifier l'appel les déclarations, + la variance
      Il faut pas oublier de mettre à jour non plus la classe Null
    *)
-  try variance_classe !class_env !cls with
+  (try variance_classe !class_env.env_classes !cls with
   | Failure s -> raise (Typing_error ((fun ff -> Format.fprintf ff
-	 "Variance error in class: %s" s), c.location));
+	 "Variance error in class: %s" s), c.location)));
   { env with env_classes = Smap.add class_name !cls env.env_classes;
 			 env_null_inherits = Sset.add class_name env.env_null_inherits}
 
@@ -537,6 +539,7 @@ let type_program prog =
 				   env_constraints = Smap.empty;
 				   env_variables = Smap.empty;
 				   env_null_inherits = Sset.empty;
+				   env_return_type = None;
 				 } in
   let env = ref base_env in
   List.iter (fun cls -> env := type_class !env cls) prog.prog_classes;
