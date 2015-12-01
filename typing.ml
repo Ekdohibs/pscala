@@ -477,7 +477,7 @@ let variance_constr env classe name_t x = function
   | Tsupertype t	-> variance_type env name_t t (-x)
 
 let variance_meth env classe name_t var m =
-  List.iter (fun (_,a) -> variance_constr env classe name_t (-x)) ;
+  List.iter (fun (_,a) -> variance_constr env classe name_t (-var) a) m.t_method_param_types;
   List.iter (fun a -> variance_type env name_t a (-var)) m.t_method_params ;
   variance_type env name_t m.t_method_type var
 
@@ -486,7 +486,7 @@ let variance_sign env name_t classe x =
      if b then variance_type env name_t c 0 else variance_type env name_t c x)
      classe.t_class_vars ;
   variance_type env name_t classe.t_class_extends x ;
-  Smap.iter (fun a b -> variance_meth classe env name_t x b) 
+  Smap.iter (fun a b -> variance_meth env classe name_t x b) 
      classe.t_class_methods ;
   List.iter (fun (a,b,c) -> variance_constr env classe name_t x b)
      classe.t_class_type_params
