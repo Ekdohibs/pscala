@@ -31,7 +31,7 @@ type t_env = {
   env_classes : t_class Smap.t; (* Les classes de l'environnement; inclut les types sans paramètres *)
   env_constraints : t_type Smap.t; (* Les contraintes de type *)
   env_variables : (bool * t_type) Smap.t; (* Les variables, mutables ou non *)
-}
+	}
 
 let type_s s = { t_type_name = s; t_arguments_type = [] }
 			   
@@ -308,7 +308,7 @@ List.fold_left (fun m (n, v) -> Smap.add n v m) Smap.empty
 ]
 
 let rec variance_type env name_t typ var = match typ.t_type_name = name_t with
-  | true  -> if var = 1 then () else assert false
+  | true  -> if var = 1 then () else raise exception "Mauvaise variance"
   | false -> 
      let cl = Smap.find name_t env in
 	 List.iter2 (fun a (_,_,b) -> variance_type env name_t a (aux b)*var)
@@ -318,19 +318,24 @@ and aux = function
   | Contravariant -> -1
   | Invariant     -> 0
 
+let variance_meth env name_t var m =
+  List.iter (fun a -> variance_type env name_t a (-1)*var) m.t_method_params ;
+  List.iter (fun a -> variance_type env name_t a var) m.t_method_type
 
 let variance_sign env name_t classe x =
   Smap.iter (fun a (b,c) -> 
     if b then variance_type env name_t c 0 else variance_type env name_t c x)
     classe.t_class_vars ;
   List.iter (fun a -> variance_type env name_t a x) classe.t_class_extends ;
-
-  (* let test = ref(true) in
-  Smap.iter (fun str (a,b) -> if b = name_t then test := !test && not(a) && )  classe.t_class_vars *)
+  List.iter (variance_meth env name_t x) classe.t_class_methods 
 
 let variance env name_t classe i = match i with
-  | 0  -> true
+  | 0  -> ()
   | x  -> variance_sign env name_t classe x
+
+let variance_classe env classe =
+  List.iter (fun (a,_,b) -> variance env a classe (aux b)) 
+      classe.t_class_type_params
      
 
 let type_program prog =
