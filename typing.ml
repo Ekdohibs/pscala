@@ -39,6 +39,15 @@ type t_env = {
 let type_s s = { t_type_name = s; t_arguments_type = [] }
 let sugar x = { location = Lexing.dummy_pos, Lexing.dummy_pos; desc = x }	   
 
+let unique_list l =
+  let l_aux = List.sort compare l in
+  let rec aux = function
+    | [] 	-> true
+	| [_]	-> true
+	| h::t when h = List.hd(t) -> false
+	| h::t 	-> aux t
+  in aux (List.sort compare l_aux)
+
 let print_list f ff l =
   match l with
   | [] -> ()
@@ -242,6 +251,13 @@ let check_bool t loc =
 	  "Trying to perform boolean logic on type@, %a"
 	  print_type t), loc))
 
+let recog_p_var_expr = function
+  | Vvar _ -> true
+  | Vexpr _ -> false
+
+let take_vvar var = match var with
+  | Vvar a -> a
+  | _ -> failwith "erreur dans take_vvar"
 		  
 let rec expr_type env e =
   match e.desc with
@@ -350,7 +366,15 @@ let rec expr_type env e =
 		 "Error in print: trying to print a value of type %a,@ which is not an Int nor a String."
 		 print_type t1), e.location));
 	 type_s "Unit";
-  | Ebloc b -> bloc_type env b.desc
+  | Ebloc b -> let bl = b.desc in
+       let l1 = List.filter recog_p_var_expr bl in
+	   let l2 = List.map take_vvar l1 in
+	   let l3 = List.map (fun var -> (var.desc).var_name) l2 in 
+       if not (unique_list l3) then 
+		   raise (Typing_error ((fun ff -> Format.fprintf ff 
+		   "The same variable was defined several times in the same bloc"), 
+		   e.location)) ;
+       bloc_type env b.desc
 
 and access_type env acc =
   match acc.desc with
@@ -474,7 +498,8 @@ let variance_constr env classe name_t x = function
   | Tsupertype t	-> variance_type env name_t t (-x)
 
 let variance_meth env classe name_t var m =
-  List.iter (fun (_,a) -> variance_constr env classe name_t (-var) a) m.t_method_param_types;
+  List.iter (fun (_,a) -> 
+     variance_constr env classe name_t (-var) a) m.t_method_param_types;
   List.iter (fun a -> variance_type env name_t a (-var)) m.t_method_params ;
   variance_type env name_t m.t_method_type var
 
