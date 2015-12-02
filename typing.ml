@@ -61,6 +61,24 @@ let unique_list l =
 	| h::t 	-> aux t
   in aux (List.sort compare l_aux)
 
+let check_unique l err_msg =
+  ignore (List.fold_left (fun seen (name, loc) ->
+	 if Sset.mem name seen then
+	   raise (Typing_error ((fun ff -> Format.fprintf ff
+	     err_msg name), loc));
+	Sset.add name seen) Sset.empty l)
+
+let check_unique_param_types l =
+  check_unique (List.map (fun p ->
+	p.desc.param_type_name, p.location) l)
+			   "Type parameter %s is used multiple times"
+
+let check_unique_params l =
+  check_unique (List.map (fun p ->
+	p.desc.par_name, p.location) l)
+			   "Parameter %s is used multiple times"
+
+			   
 let print_list f ff l =
   match l with
   | [] -> ()
@@ -476,11 +494,9 @@ let rec expr_type env e =
   | Ebloc b -> let bl = b.desc in
        let l1 = List.filter recog_p_var_expr bl in
 	   let l2 = List.map take_vvar l1 in
-	   let l3 = List.map (fun var -> (var.desc).var_name) l2 in 
-       if not (unique_list l3) then 
-		   raise (Typing_error ((fun ff -> Format.fprintf ff 
-		   "The same variable was defined several times in the same bloc"), 
-		   e.location)) ;
+	   let l3 = List.map (fun var -> (var.desc).var_name, var.location) l2 in
+	   check_unique l3
+		 "Variable %s is already defined inside this block";
        bloc_type env b.desc
 
 and access_type env acc =
@@ -555,7 +571,7 @@ let add_type_param_to_env env name constr =
   let extends = match constr with
 	  Tsubtype t -> t
 	| _ -> type_s "Any"
-  in (* TODO: et Null ? *)
+  in
   let class_ext = TNmap.find extends.t_type_name env.env_classes in
   let new_classes = TNmap.add name
 	{
@@ -631,8 +647,11 @@ let variance_sign env name_t classe x =
   Smap.iter (fun a b -> variance_meth env classe name_t x b) 
      classe.t_class_methods ;
   List.iter (fun (a,b,c) -> variance_constr env classe name_t x b)
-     classe.t_class_type_params
+     classe.t_class_type_params;
+  List.iter (fun p -> variance_type env name_t p x)
+     classe.t_class_params
 
+	 
 let variance env name_t classe i = match i with
   | 0  -> ()
   | x  -> variance_sign env name_t classe x
@@ -641,13 +660,15 @@ let variance_classe env classe =
   List.iteri (fun i (a,_,b) ->
 	 variance env (TClassTvar (a, i, 0)) classe (aux b)) 
 			 classe.t_class_type_params
-
+			 
 let type_class env c =
   let class_env = ref env in
   let class_name = c.desc.class_name in
   if Smap.mem class_name env.env_cnames then
     raise (Typing_error ((fun ff -> Format.fprintf ff
 	"Class %s is already defined" class_name), c.location)) ; 
+  check_unique_param_types
+	(List.map (fun p -> p.desc.param_type) c.desc.class_type_params);
   let (ce, tp) = extend_env !class_env
 	(List.map (fun p -> p.desc.param_type) c.desc.class_type_params)
 	false in
@@ -662,7 +683,7 @@ let type_class env c =
 	   TGlobal "Null"; TGlobal "Nothing"] 
 		then raise (Typing_error ((fun ff -> Format.fprintf ff
 	  "Extending builtin class %a is not allowed"
-	  print_type ext), c.location));
+	  print_type ext), (fst c.desc.class_extends).location));
 (*  let c_ext = try TNmap.find ext.t_type_name !class_env.env_classes 
   with Not_found -> 
     raise (Typing_error ((fun ff -> Format.fprintf ff
@@ -685,6 +706,7 @@ let type_class env c =
 							   dummy_cls !class_env.env_classes;
 			   env_cnames = Smap.add class_name (TGlobal class_name)
 									 !class_env.env_cnames } in
+  check_unique_params c.desc.class_params;
   let params = List.map (fun param -> 
         param.desc.par_name, p_to_t_type cenv param.desc.par_type) 
         c.desc.class_params in
@@ -728,6 +750,15 @@ let type_class env c =
 				   !class_env.env_variables };
   new_type !class_env ext (snd c.desc.class_extends)
 		   (list_loc (snd c.desc.class_extends));
+  let c_methods = List.map
+	(function | Dmethod m -> m | _ -> assert false)
+	(List.filter (function | Dmethod _ -> true | _ -> false)
+				 c.desc.class_decls) in
+  let methods_l = List.map
+	 (fun m -> (m.desc.method_name, m.location)) c_methods
+  in
+  check_unique methods_l
+			   "Method %s is already defined inside this class";
   let decl_var v =
 	if Smap.mem v.desc.var_name !cls.t_class_vars then
 	  raise (Typing_error ((fun ff -> Format.fprintf ff
@@ -741,6 +772,7 @@ let type_class env c =
   in
   let decl_method m =
 	(* TODO: check override *)
+	check_unique_param_types m.desc.method_param_types;
 	let (m_env, tp) = extend_env !class_env
 								 m.desc.method_param_types true in
 	let m_types = List.map
@@ -760,6 +792,7 @@ let type_class env c =
 							 (TMethodTvar (a, i, 0)) b) tp;
 	let m_env = ref { !m_env with env_classes =
 		  TNmap.add (TGlobal class_name) !cls !m_env.env_classes } in
+	check_unique_params m.desc.method_params;
 	List.iter2 (fun p t -> m_env := { !m_env with env_variables =
 		   Smap.add p.desc.par_name (false, t) !m_env.env_variables })
 			   m.desc.method_params m_types;
@@ -775,7 +808,7 @@ let type_class env c =
 	| Dmethod m -> decl_method m
   in
   List.iter decl c.desc.class_decls;
-  (* TODO: better variance
+  (* TODO: better variance error report
    *)
   (try variance_classe !class_env !cls with
   | Failure s -> raise (Typing_error ((fun ff -> Format.fprintf ff
