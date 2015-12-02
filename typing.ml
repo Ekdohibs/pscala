@@ -1,5 +1,6 @@
 open Ast
-exception Typing_error of (Format.formatter -> unit) * (Lexing.position * Lexing.position)
+exception Typing_error of
+   (Format.formatter -> unit) * (Lexing.position * Lexing.position)
 
 module Smap = Map.Make(String)
 module Sset = Set.Make(String)
@@ -42,9 +43,12 @@ type t_class = {
 					  
 type t_env = {
   env_cnames : t_type_name Smap.t;
-  env_classes : t_class TNmap.t; (* Les classes de l'environnement; inclut les types sans paramètres *)
-  env_constraints : t_type TNmap.t; (* Les contraintes de type *)
-  env_variables : (bool * t_type) Smap.t; (* Les variables, mutables ou non *)
+  (* Les classes de l'environnement; inclut les types sans paramètres *)
+  env_classes : t_class TNmap.t;
+  (* Les contraintes de type *)
+  env_constraints : t_type TNmap.t;
+  (* Les variables, mutables ou non *)
+  env_variables : (bool * t_type) Smap.t;
   env_null_inherits : TNset.t;
   env_return_type : t_type option;
 }
@@ -303,7 +307,8 @@ let rec p_to_t_type env t =
 	try Smap.find name env.env_cnames
 	with
 	  Not_found -> raise (Typing_error 
-	     ((fun ff -> Format.fprintf ff "Unbound class: %s" name), t.location))
+		((fun ff -> Format.fprintf ff "Unbound class: %s" name),
+		 t.location))
   in
   let c = TNmap.find ct env.env_classes in
   let p_types = c.t_class_type_params in
@@ -494,9 +499,9 @@ let rec expr_type env e =
   | Ebloc b -> let bl = b.desc in
        let l1 = List.filter recog_p_var_expr bl in
 	   let l2 = List.map take_vvar l1 in
-	   let l3 = List.map (fun var -> (var.desc).var_name, var.location) l2 in
-	   check_unique l3
-		 "Variable %s is already defined inside this block";
+	   check_unique (List.map
+			  (fun var -> (var.desc).var_name, var.location) l2)
+			  "Variable %s is already defined inside this block";
        bloc_type env b.desc
 
 and access_type env acc =
