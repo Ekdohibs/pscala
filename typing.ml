@@ -731,13 +731,14 @@ let type_class env c =
 				 env_cnames = Smap.add class_name (TGlobal class_name)
 			   !class_env.env_cnames };
   update_class_env ();
+  (*
   List.iter
 	(fun (par_name, par_type) ->
 	 class_env := { !class_env with
 					env_variables = Smap.add par_name (false, par_type)
 											 !class_env.env_variables }
 	) params;
-  (*
+  *)
   List.iter
 	(fun (par_name, par_type) ->
 	 cls := { !cls with
@@ -745,7 +746,6 @@ let type_class env c =
 									  !cls.t_class_vars }
 	) params;
   update_class_env ();
-  *)
   class_env := { !class_env with
 				 env_variables = Smap.add "this"
 				   (false,
