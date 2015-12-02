@@ -876,7 +876,7 @@ let type_program prog =
 					 class_type_params = [];
 					 class_params = [];
 					 class_decls = prog.prog_main.desc;
-					 class_extends = (sugar { type_name =  "Any";
+					 class_extends = (sugar { type_name =  "Any ";
 											  arguments_type = [] },
 									  []) } in
   env := type_class !env { desc = main_class;
