@@ -10,7 +10,7 @@ type t_type_name =
   | TGlobal of p_ident
   | TClassTvar of p_ident * int * int
   | TMethodTvar of p_ident * int * int
-
+									 
 module TypeName = struct
   type t = t_type_name
   let compare = compare
@@ -34,7 +34,7 @@ type t_method = {
 				  
 type t_class = {
   t_class_type_params : (p_ident * t_param_type_constraint * p_variance) list;
-  t_class_params : t_type list;
+  t_class_params : (p_ident * t_type) list;
   t_class_vars : (bool * t_type) Smap.t;
   t_class_methods : t_method Smap.t;
   t_class_inherits : TNset.t;
@@ -131,14 +131,17 @@ let print_variance ff = function
 let print_class_ptype ff (t, c, v) =
   Format.fprintf ff "%a%s%a" print_variance v t print_constraint c
 				 
-let print_method ff (name, m) =
-  Format.open_hovbox 2; Format.fprintf ff "def %s" name;
+let print_method_type ff m =
   if m.t_method_param_types <> [] then
 	Format.fprintf ff "[%a]" (print_list print_method_ptype)
 				   m.t_method_param_types;
   Format.fprintf ff "(%a)" (print_list print_type)
 				 m.t_method_params;
-  Format.fprintf ff " : %a@\n" print_type m.t_method_type;
+  Format.fprintf ff " : %a" print_type m.t_method_type
+				 
+let print_method ff (name, m) =
+  Format.open_hovbox 2; Format.fprintf ff "def %s" name;
+  Format.fprintf ff "%a@\n" print_method_type m;
   Format.close_box ()
 
 let print_var ff (name, (mut, t)) =
@@ -156,7 +159,7 @@ let print_class ff (name, c) =
 	Format.fprintf ff "[%a]" (print_list print_class_ptype)
 				   c.t_class_type_params;
   Format.fprintf ff "(%a)@\n" (print_list print_type)
-				 c.t_class_params;
+				 (List.map snd c.t_class_params);
   Format.fprintf ff "extends %a@\n" print_type c.t_class_extends;
   Format.fprintf ff "inherits {%a}@\n" (print_list print_type_name)
 				 (TNset.elements c.t_class_inherits);
@@ -521,8 +524,11 @@ and access_type env acc =
 	 let c = TNmap.find t.t_type_name env.env_classes in
 	 let (mut, tt) = try Smap.find id c.t_class_vars
 	 with Not_found ->
-	   raise (Typing_error 
-	      ((fun ff -> Format.fprintf ff 
+	   if e.desc = Ethis && List.mem_assoc id c.t_class_params then
+		  (false, List.assoc id c.t_class_params)
+	   else
+		 raise (Typing_error 
+		   ((fun ff -> Format.fprintf ff 
 		  "Type %a has no field %s" print_type t id), acc.location))
 	 in
 	 (mut, class_subst t.t_arguments_type tt)
@@ -535,7 +541,7 @@ and new_type env t args loc =
 	  print_type t
 	  (List.length c.t_class_params)
 	  (List.length args)), loc));
-  List.iter2 (fun arg_type arg ->
+  List.iter2 (fun (_, arg_type) arg ->
 	let at = class_subst t.t_arguments_type arg_type in
     let at2 = expr_type env arg in
 	if not (is_subtype env at2 at) then
@@ -719,26 +725,26 @@ let type_class env c =
   let params = List.map (fun param -> 
         param.desc.par_name, p_to_t_type cenv param.desc.par_type) 
         c.desc.class_params in
-  let cls = ref { dummy_cls with t_class_params = List.map snd params } in
+  let cls = ref { dummy_cls with t_class_params = params } in
   let env_classes = !class_env.env_classes in
   let update_class_env () =
 	class_env := { !class_env with env_classes =
 	  TNmap.add (TGlobal class_name) !cls env_classes }
   in
+  
   class_env := { !class_env with
 				 env_null_inherits = TNset.add (TGlobal class_name)
 									 !class_env.env_null_inherits;
 				 env_cnames = Smap.add class_name (TGlobal class_name)
 			   !class_env.env_cnames };
   update_class_env ();
-  (*
   List.iter
 	(fun (par_name, par_type) ->
 	 class_env := { !class_env with
 					env_variables = Smap.add par_name (false, par_type)
 											 !class_env.env_variables }
 	) params;
-  *)
+  (*
   List.iter
 	(fun (par_name, par_type) ->
 	 cls := { !cls with
@@ -746,6 +752,7 @@ let type_class env c =
 									  !cls.t_class_vars }
 	) params;
   update_class_env ();
+   *)
   class_env := { !class_env with
 				 env_variables = Smap.add "this"
 				   (false,
@@ -780,7 +787,6 @@ let type_class env c =
 	update_class_env ()
   in
   let decl_method m =
-	(* TODO: check override *)
 	check_unique_param_types m.desc.method_param_types;
 	let (m_env, tp) = extend_env !class_env
 								 m.desc.method_param_types true in
@@ -791,9 +797,10 @@ let type_class env c =
 	let tm = { t_method_param_types = tp;
 			   t_method_params = m_types;
 			   t_method_type = m_type } in
+	let prev_methods = !cls.t_class_methods in
 	cls := { !cls with t_class_methods =
-					Smap.add m.desc.method_name
-					tm !cls.t_class_methods };
+				   Smap.add m.desc.method_name
+							tm !cls.t_class_methods };
 	update_class_env ();
 	let m_env = ref m_env in
 	List.iteri (fun i (a, b) ->
@@ -801,6 +808,80 @@ let type_class env c =
 							 (TMethodTvar (a, i, 0)) b) tp;
 	let m_env = ref { !m_env with env_classes =
 		  TNmap.add (TGlobal class_name) !cls !m_env.env_classes } in
+	
+	if Smap.mem m.desc.method_name prev_methods then begin
+	  if not m.desc.method_override then
+		raise (Typing_error ((fun ff -> Format.fprintf ff
+		  "Trying to define method %s in class %s but a method with the same name already exists in parent class %s"
+		  m.desc.method_name class_name (type_name ext.t_type_name)),
+							 m.location));
+	  let prev_method = Smap.find m.desc.method_name
+								  prev_methods in
+	  if List.length tp <>
+		   List.length prev_method.t_method_param_types then
+		raise (Typing_error ((fun ff -> Format.fprintf ff
+		   "Trying to override existing method %s of class %s with a different number of type arguments: expected %d, got %d"
+		   m.desc.method_name (type_name ext.t_type_name)
+		   (List.length prev_method.t_method_param_types)
+		   (List.length tp)), m.location));
+	  let rename_subst =  method_subst
+		(List.mapi (fun i (s, _) ->
+					{ t_type_name = TMethodTvar (s, i, 0);
+					  t_arguments_type = [] })
+				   tm.t_method_param_types)
+		ext.t_arguments_type
+	  in
+	  let subst = class_subst ext.t_arguments_type in
+	  let old_m = {
+		t_method_param_types = List.map (function
+		  | (s, TAny) -> (s, TAny)
+		  | (s, Tsubtype t) -> (s, Tsubtype (rename_subst t))
+		  | (s, Tsupertype t) -> (s, Tsupertype (rename_subst t))
+		) prev_method.t_method_param_types;
+		t_method_params = List.map rename_subst
+								   prev_method.t_method_params;
+		t_method_type = rename_subst prev_method.t_method_type
+	  } in
+	  let old_m_norename = {
+		t_method_param_types = List.map (function
+		  | (s, TAny) -> (s, TAny)
+		  | (s, Tsubtype t) -> (s, Tsubtype (subst t))
+		  | (s, Tsupertype t) -> (s, Tsupertype (subst t))
+		) prev_method.t_method_param_types;
+		t_method_params = List.map subst prev_method.t_method_params;
+		t_method_type = subst prev_method.t_method_type
+	  } in
+	  let incomp () =
+		raise (Typing_error ((fun ff -> Format.fprintf ff
+		  "Trying to override existing method %s of class %s with incompatible signatures:@, %s%a@ is not compatible with existing signature@, %s%a"
+		  m.desc.method_name (type_name ext.t_type_name)
+		  m.desc.method_name print_method_type tm
+		  m.desc.method_name print_method_type old_m_norename),
+							 m.location)) in
+	  if List.length old_m.t_method_params <>
+		   List.length tm.t_method_params then
+		incomp();
+	  (* Vérification de la compatibilité des contraintes:
+         On transforme les contraintes triviales en TAny *)
+	  let simpl_ctr (s, ct) =
+		  (s, 
+		   if ct = Tsubtype (type_s "Any") then TAny
+		   else if ct = Tsupertype (type_s "Nothing") then TAny
+		   else ct
+		  ) in
+	  List.iter2
+		(fun (_, ct1) (_, ct2) -> if ct1 <> ct2 then incomp ())
+		(List.map simpl_ctr old_m.t_method_param_types)
+		(List.map simpl_ctr tm.t_method_param_types);
+	  List.iter2
+		(fun t1 t2 -> if t1 <> t2 then incomp ())
+		old_m.t_method_params tm.t_method_params;
+	  if not (is_subtype !m_env tm.t_method_type old_m.t_method_type) then
+		incomp()
+    end else if m.desc.method_override then
+	  raise (Typing_error ((fun ff -> Format.fprintf ff
+	    "Trying to override non-existant method %s"
+		m.desc.method_name), m.location));
 	check_unique_params m.desc.method_params;
 	List.iter2 (fun p t -> m_env := { !m_env with env_variables =
 		   Smap.add p.desc.par_name (false, t) !m_env.env_variables })
@@ -876,7 +957,7 @@ let type_program prog =
 					 class_type_params = [];
 					 class_params = [];
 					 class_decls = prog.prog_main.desc;
-					 class_extends = (sugar { type_name =  "Any ";
+					 class_extends = (sugar { type_name = "Any ";
 											  arguments_type = [] },
 									  []) } in
   env := type_class !env { desc = main_class;
