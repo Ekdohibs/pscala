@@ -65,6 +65,14 @@ let unique_list l =
 	| h::t 	-> aux t
   in aux (List.sort compare l_aux)
 
+let iter3 f l m n = List.iter2 (fun a (b,c) -> f a b c) l (List.combine m n)
+
+let map3 f l m n = List.map2 (fun a (b,c) -> f a b c) l (List.combine m n)
+
+let iteri2 f l m = List.iteri (fun i (a,b) -> f i a b) (List.combine l m)
+
+let mapi2 f l m = List.mapi (fun i (a,b) -> f i a b) (List.combine l m)
+
 let check_unique l err_msg =
   ignore (List.fold_left (fun seen (name, loc) ->
 	 if Sset.mem name seen then
@@ -619,62 +627,75 @@ let extend_env env param_types is_method =
 	 (name, constr)) param_types in
   (!eenv, pt)
 
+(* vérification de la variance *)
 
-let rec variance_type env name_t typ var =
-  try let name_typ = Smap.find typ.desc.type_name env.env_cnames in
-  match (name_typ = name_t) with
-  | true  -> if var = 1 then () else raise 
-     (Typing_error ((fun ff -> Format.fprintf ff 
-	 "Bad variance for type %s" (type_name name_t)), typ.location))
+let rec variance_type env name_t typ_t typ_p var_exp var =
+  match (typ_t.t_type_name = name_t) with
+  | true  -> if var = var_exp then () else raise 
+     (Typing_error ((fun ff -> Format.fprintf ff
+	 "The type %a should have been %a, but appears in a %a position"
+	 print_type_name name_t rev_aux var_exp rev_aux var), typ.location))
   | false -> let cl = TNmap.find name_typ env.env_classes in
-		List.iter2 (fun a (_,_,b) -> variance_type env name_t a ((aux b)*var))
-	    typ.desc.arguments_type cl.t_class_type_params
-  with Not_found -> ()
+		iter3 (fun a_t a_p (_,_,b) -> 
+		   variance_type env name_t a_t a_p var_exp ((aux b)*var))
+	    typ_t.t_arguments_type typ_p.desc.arguments_type cl.t_class_type_params
 and aux = function
   | Covariant     -> 1
   | Contravariant -> -1
   | Invariant     -> 0
+and rev_aux ff = function
+  | 1	-> Format.fprintf ff "covariant"
+  | -1	-> Format.fprintf ff "contravariant"
+  | 0	-> Format.fprintf ff "invariant"
+  | _	-> assert false
 
-let variance_constr env classe name_t x = function
-  | Any			-> ()
-  | Subtype t	-> variance_type env name_t t x
-  | Supertype t	-> variance_type env name_t t (-x)
+let variance_constr env classe_t classe_p name_t var_exp x = function
+  | (TAny,Any)					-> ()
+  | (Tsubtype t_t,Subtype t_p)	-> variance_type env name_t t_t t_p var_exp x
+  | (Tsupertype t_t,Supertype t_p)	-> variance_type env name_t t_t t_p 
+      var_exp (-x)
+  | _							-> assert false
 
-let variance_meth env classe name_t var m =
-  List.iter (fun a -> variance_constr env classe name_t (-var) 
-      a.desc.param_type_constraint) m.method_param_types;
-  List.iter (fun a -> variance_type env name_t a.desc.par_type (-var)) 
-      m.method_params ;
-  variance_type env name_t m.method_type var
+let variance_meth env classe_t classe_p name_t var_exp var m_t m_p =
+  List.iter2 (fun (_,b) a -> variance_constr env classe_t classe_p name_t 
+      var_exp (-var) b a.desc.param_type_constraint) 
+      m_t.t_method_param_type m_p.method_param_types;
+  List.iter2 (fun b a -> variance_type env name_t b a.desc.par_type 
+      var_exp (-var)) m_t.t_method_params m_p.method_params ;
+  variance_type env name_t m_t.t_method_type m_p.method_type var_exp var
 
-let variance_sign env name_t classe x =
+let variance_sign env name_t classe_t classe_p var_exp =
   let (la,lb) = List.partition 
      (fun a -> match a with Dvar _ -> true | Dmethod _ -> false)
-     classe.class_decls in
-  let l1 = List.map (fun a -> match a with Dvar b -> b | _ -> assert false) 
+     classe_p.class_decls in
+  let l1_p = List.map (fun a -> match a with Dvar b -> b | _ -> assert false) 
      la in
-  let l2 = List.map (fun a -> match a with Dmethod b -> b | _ -> assert false)
+  let l2_p = List.map (fun a -> match a with Dmethod b -> b | _ -> assert false)
      lb in
-  List.iter (fun a ->
+  List.iter (fun a -> 
+     let (b,a_t) = Smap.find a.desc.var_name classe_t in
      match a.desc.var_type with
+	 (* TODO utiliser les variables du typeur *)
 	 | None     -> ()
-	 | Some typ -> if a.desc.var_mutable then variance_type env name_t typ 0 
-		 else variance_type env name_t typ x)
+	 | Some typ -> if a.desc.var_mutable 
+	     then variance_type env name_t typ var_exp 0 
+		 else variance_type env name_t typ var_exp 1)
      l1 ;
-  variance_type env name_t (fst classe.class_extends) x ;
-  List.iter (fun m -> variance_meth env classe name_t x m.desc) l2 ;
-  List.iter (fun b -> variance_constr env classe name_t x 
+  variance_type env name_t (fst classe_p.class_extends) var_exp 1 ;
+  List.iter (fun m -> variance_meth env classe_t classe_p name_t var_exp 1 
+     m.desc) l2 ;
+  List.iter (fun b -> variance_constr env classe_t classe_p name_t var_exp 1 
      (b.desc.param_type.desc.param_type_constraint))
-     classe.class_type_params
+     classe_p.class_type_params
 	 
-let variance env name_t classe i = match i with
+let variance env name_t classe_t classe_p i = match i with
   | 0  -> ()
-  | x  -> variance_sign env name_t classe x
+  | x  -> variance_sign env name_t classe_t classe_p x 
 
-let variance_classe env classe =
+let variance_classe env classe_t classe_p =
   List.iteri (fun i a ->
 	 variance env (TClassTvar (a.desc.param_type.desc.param_type_name, i, 0))
-	 classe (aux a.desc.param_variance)) classe.class_type_params
+	 classe_t classe_p (aux a.desc.param_variance)) classe_p.class_type_params
 			 
 let type_class env c =
   let class_env = ref env in
@@ -898,7 +919,7 @@ let type_class env c =
 	| Dmethod m -> decl_method m
   in
   List.iter decl c.desc.class_decls;
-  variance_classe !class_env c.desc ;
+  variance_classe !class_env !cls c.desc ;
   { env with
 	env_cnames = Smap.add class_name (TGlobal class_name)
 						  env.env_cnames;
