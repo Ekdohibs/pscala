@@ -31,8 +31,8 @@ pscala: $(CMO)
 parser.mly: ast.cmi parser_error.cmo
 
 clean:
-	rm -f *.cm[io] *.o *.annot *~ pscala$(GENERATED)
-	rm -f parser.output parser.automaton
+	rm -f *.cm[io] *.o *.annot *~ pscala $(GENERATED)
+	rm -f parser.output parser.automaton parser.conflicts
 	rm -f .depend
 
 .depend depend:$(GENERATED)
