@@ -634,8 +634,11 @@ let rec variance_type env name_t typ_t typ_p var_exp var =
   | true  -> if var = var_exp then () else raise 
      (Typing_error ((fun ff -> Format.fprintf ff
 	 "The type %a should have been %a, but appears in a %a position"
-	 print_type_name name_t rev_aux var_exp rev_aux var), typ.location))
-  | false -> let cl = TNmap.find name_typ env.env_classes in
+	 print_type_name name_t rev_aux var_exp rev_aux var), typ_p.location))
+  | false -> match typ_t.t_type_name with
+        | TMethodTvar _ -> ()
+		| _ 			->
+        let cl = TNmap.find typ_t.t_type_name env.env_classes in
 		iter3 (fun a_t a_p (_,_,b) -> 
 		   variance_type env name_t a_t a_p var_exp ((aux b)*var))
 	    typ_t.t_arguments_type typ_p.desc.arguments_type cl.t_class_type_params
@@ -658,11 +661,19 @@ let variance_constr env classe_t classe_p name_t var_exp x = function
 
 let variance_meth env classe_t classe_p name_t var_exp var m_t m_p =
   List.iter2 (fun (_,b) a -> variance_constr env classe_t classe_p name_t 
-      var_exp (-var) b a.desc.param_type_constraint) 
-      m_t.t_method_param_type m_p.method_param_types;
+      var_exp (-var) (b,a.desc.param_type_constraint)) 
+      m_t.t_method_param_types m_p.method_param_types;
   List.iter2 (fun b a -> variance_type env name_t b a.desc.par_type 
       var_exp (-var)) m_t.t_method_params m_p.method_params ;
   variance_type env name_t m_t.t_method_type m_p.method_type var_exp var
+
+let rec dummy_parser_type loc typ_t = 
+   { location = loc ; 
+     desc = { type_name = "" ; 
+	          arguments_type = List.map (dummy_parser_type loc) 
+			    typ_t.t_arguments_type
+			 } 
+	 }
 
 let variance_sign env name_t classe_t classe_p var_exp =
   let (la,lb) = List.partition 
@@ -673,20 +684,23 @@ let variance_sign env name_t classe_t classe_p var_exp =
   let l2_p = List.map (fun a -> match a with Dmethod b -> b | _ -> assert false)
      lb in
   List.iter (fun a -> 
-     let (b,a_t) = Smap.find a.desc.var_name classe_t in
-     match a.desc.var_type with
+     let (b,a_t) = Smap.find a.desc.var_name classe_t.t_class_vars in
+     let typ = match a.desc.var_type with
 	 (* TODO utiliser les variables du typeur *)
-	 | None     -> ()
-	 | Some typ -> if a.desc.var_mutable 
-	     then variance_type env name_t typ var_exp 0 
-		 else variance_type env name_t typ var_exp 1)
-     l1 ;
-  variance_type env name_t (fst classe_p.class_extends) var_exp 1 ;
-  List.iter (fun m -> variance_meth env classe_t classe_p name_t var_exp 1 
-     m.desc) l2 ;
-  List.iter (fun b -> variance_constr env classe_t classe_p name_t var_exp 1 
-     (b.desc.param_type.desc.param_type_constraint))
-     classe_p.class_type_params
+	 | None     -> dummy_parser_type a.location a_t
+	 | Some typ -> typ
+	 in if b then variance_type env name_t a_t typ var_exp 0 
+		 else variance_type env name_t a_t typ var_exp 1)
+     l1_p ;
+  variance_type env name_t classe_t.t_class_extends (fst classe_p.class_extends)
+     var_exp 1 ;
+  List.iter (fun m -> 
+     let m_t = Smap.find m.desc.method_name classe_t.t_class_methods in
+	 variance_meth env classe_t classe_p name_t var_exp 1 m_t m.desc) l2_p ;
+  List.iter2 (fun (_,a,_) b -> 
+     variance_constr env classe_t classe_p name_t var_exp 1 
+     (a,b.desc.param_type.desc.param_type_constraint))
+     classe_t.t_class_type_params classe_p.class_type_params
 	 
 let variance env name_t classe_t classe_p i = match i with
   | 0  -> ()
