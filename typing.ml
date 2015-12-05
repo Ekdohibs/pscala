@@ -314,30 +314,41 @@ let take_vvar var = match var with
 		  
 let rec expr_type env e =
   match e.desc with
-  | Eint _ -> type_s "Int"
-  | Estring _ -> type_s "String"
-  | Ebool _ -> type_s "Boolean"
-  | Eunit -> type_s "Unit"
+  | Eint i -> { t_expr_type = type_s "Int";
+				t_expr = Tint i }
+  | Estring s -> { t_expr_type = type_s "String";
+				   t_expr = Tstring s }
+  | Ebool b -> { t_expr_type = type_s "Boolean";
+				 t_expr = Tbool b }
+  | Eunit -> { t_expr_type = type_s "Unit";
+			   t_expr = Tunit }
   | Ethis -> let (_, typ) = Smap.find "this" env.env_variables in
-			 typ
-  | Enull -> type_s "Null"
-  | Eaccess acc -> snd (access_type env acc)
+			 { t_expr_type = typ;
+			   t_expr = Tthis }
+  | Enull -> { t_expr_type = type_s "Null";
+			   t_expr = Tnull }
+  | Eaccess acc -> let (is_mutable, a_type, access) =
+					 (access_type env acc) in
+				   { t_expr_type = a_type;
+					 t_expr = Taccess access }
   | Eassign (acc, value) ->
-	 let (is_mutable, t) = access_type env acc in
+	 let (is_mutable, a_type, access) = access_type env acc in
 	 if not is_mutable then
 	   raise (Typing_error 
 	       (s2f "Trying to assign an immutable value", e.location));
-	 let t2 = expr_type env value in
-	 if not (is_subtype env t2 t) then
+	 let v = expr_type env value in
+	 if not (is_subtype env v.t_expr_type a_type) then
 	   raise (Typing_error 
 	      ((fun ff -> Format.fprintf ff 
 		  "Incorrect types in assignment:@ type@, %a@ is not a subtype of type @, %a" 
-		  print_type t2 print_type t), e.location));
-	 type_s "Unit"
+		  print_type v.t_expr_type print_type a_type), e.location));
+	 { t_expr_type = type_s "Unit";
+	   t_expr = Tassign (access, v) }
   | Ecall (acc, t_params, args) ->
 	 let e1, name = match acc.desc with Afield (e, m) -> e, m
 								  | _ -> assert false in
-	 let t1 = expr_type env e1 in
+	 let et1 = expr_type env e1 in
+	 let t1 = et1.t_expr_type in
 	 let arg_types = List.map (p_to_t_type env) t_params in
 	 let c = TNmap.find t1.t_type_name env.env_classes in
 	 let m = try Smap.find name c.t_class_methods
@@ -359,15 +370,17 @@ let rec expr_type env e =
 				) m.t_method_param_types
 				(List.combine arg_types t_params);
 
-	 let a_types = List.map (fun arg ->
+	 let a_typed = List.map (fun arg ->
 	   (expr_type env arg, arg.location)) args in
-	 List.iter2 (fun (t, loc) t2 ->
-	   if not (is_subtype env t t2) then
+	 List.iter2 (fun (ea, loc) t2 ->
+	   if not (is_subtype env ea.t_expr_type t2) then
 		 raise (Typing_error ((fun ff -> Format.fprintf ff
 		   "Argument type@, %a@ is not a subtype of expected type@, %a."
-		   print_type t print_type t2), loc))
-	   ) a_types effective_types;
-	 subst m.t_method_type
+		   print_type ea.t_expr_type print_type t2), loc))
+	   ) a_typed effective_types;
+	 { t_expr_type = subst m.t_method_type;
+	   t_expr = Tcall (et1, name, arg_types, List.map fst a_typed)
+	 }
   | Enew (type_name, type_args, args) ->
 	 if type_name = "Main" then
 	   raise (Typing_error (s2f
