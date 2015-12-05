@@ -93,8 +93,23 @@ and t_var_expr = TVvar of t_var | TVexpr of t_expr
 
 and t_bloc = t_var_expr list
 
-(*
+
 type t_method = {
-  t_method_param_types : 
+  (* TODO: on a vraiment besoin de garder les contraintes ?
+       -> détermination de la méthode appelée devrait se faire
+          dans le typage, donc pas besoin *)
+  m_param_types : (p_ident * t_param_type_constraint) list;
+  (* TODO: est-ce utile de garder le nom ? *)
+  m_params : (p_ident * t_type) list;
+  m_type : t_type;
+  m_body : t_expr;
 }
- *)
+
+type t_class = {
+  (* idem methode *)
+  c_type_params : (p_ident * t_param_type_constraint) list;
+  c_params : (p_ident * t_type) list;
+  c_vars : (bool * t_type) Smap.t;
+  c_methods : t_method Smap.t;
+  c_extends : t_type * (t_expr list)
+}
