@@ -3,7 +3,7 @@ open Type_ast
 exception Typing_error of
    (Format.formatter -> unit) * (Lexing.position * Lexing.position)
 let type_s s = { t_type_name = TGlobal s; t_arguments_type = [] }
-let sugar x = { location = Lexing.dummy_pos, Lexing.dummy_pos; desc = x }	   
+let sugar x = { location = Lexing.dummy_pos, Lexing.dummy_pos; desc = x }
 
 let unique_list l =
   let l_aux = List.sort compare l in
@@ -14,14 +14,18 @@ let unique_list l =
 	| h::t 	-> aux t
   in aux (List.sort compare l_aux)
 
-let iter3 f l m n = List.iter2 (fun a (b,c) -> f a b c) l (List.combine m n)
-
-let map3 f l m n = List.map2 (fun a (b,c) -> f a b c) l (List.combine m n)
-
-let iteri2 f l m = List.iteri (fun i (a,b) -> f i a b) (List.combine l m)
-
-let mapi2 f l m = List.mapi (fun i (a,b) -> f i a b) (List.combine l m)
-
+module List = struct
+  include List
+  let iter3 f l m n =
+	List.iter2 (fun a (b,c) -> f a b c) l (List.combine m n)
+  let map3 f l m n =
+	List.map2 (fun a (b,c) -> f a b c) l (List.combine m n)
+  let iteri2 f l m =
+	List.iteri (fun i (a,b) -> f i a b) (List.combine l m)
+  let mapi2 f l m =
+	List.mapi (fun i (a,b) -> f i a b) (List.combine l m)
+end
+			  
 let check_unique l err_msg =
   ignore (List.fold_left (fun seen (name, loc) ->
 	 if Sset.mem name seen then
@@ -668,7 +672,7 @@ let rec variance_type env name_t typ_t typ_p var_exp var =
         | TMethodTvar _ -> ()
 		| _ 			->
         let cl = TNmap.find typ_t.t_type_name env.env_classes in
-		iter3 (fun a_t a_p (_,_,b) -> 
+		List.iter3 (fun a_t a_p (_,_,b) -> 
 		   variance_type env name_t a_t a_p var_exp ((aux b)*var))
 	    typ_t.t_arguments_type typ_p.desc.arguments_type cl.t_class_type_params
 and aux = function
@@ -952,7 +956,7 @@ let type_class env c =
 	    "Trying to override non-existant method %s"
 		m.desc.method_name), m.location));
 	check_unique_params m.desc.method_params;
-	iteri2 (fun i p t -> m_env := { !m_env with env_variables =
+	List.iteri2 (fun i p t -> m_env := { !m_env with env_variables =
 			Smap.add p.desc.par_name
 					 (false, t, TParam (p.desc.par_name, i))
 					 !m_env.env_variables })
