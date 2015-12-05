@@ -1,13 +1,7 @@
 %{
   open Ast
-  open Parser_error
   let w pos x = { location = pos; desc = x }
   let sugar x = { location = Lexing.dummy_pos, Lexing.dummy_pos; desc = x }
-  let check_int_bound s s2 =
-	if String.length s = String.length s2 then
-	  s <= s2
-	else
-	  String.length s < String.length s2
 
 %}
 
@@ -162,10 +156,7 @@ expr:
   | e = expr_desc { w ($startpos, $endpos) e }
 	  
 expr_desc:
-  | i = INT { if check_int_bound i "2147483647" then
-				Eint i
-			  else
-				raise (Parser_error ("Constant too big: " ^ i)) }
+  | i = INT { Eint i }
   | s = STRING { Estring s }
   | b = BOOL { Ebool b }
   | LEFTPAR ; RIGHTPAR { Eunit }

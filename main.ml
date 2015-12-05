@@ -38,7 +38,7 @@ let prog = Debug.protect begin fun () ->
   try
 	Parser.prog Lexer.token lexbuf
   with
-  | Lexer.Lexing_error s | Parser_error.Parser_error s ->
+  | Lexer.Lexing_error s | Parser.Parser_error s ->
 	 begin
 	   report_error file (Lexing.lexeme_start_p lexbuf) (Lexing.lexeme_end_p lexbuf);
 	   eprintf "%s@." s; exit 1

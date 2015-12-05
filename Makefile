@@ -1,12 +1,13 @@
-CMO=debug.cmo lexer.cmo parser_error.cmo parser.cmo type_ast.cmo typing.cmo main.cmo
-GENERATED = lexer.ml parser.ml parser.mli
+CMO=debug.cmo menhir_parse.cmo parser.cmo lexer.cmo type_ast.cmo typing.cmo main.cmo
+GENERATED = lexer.ml menhir_parse.ml menhir_parse.mli
 FLAGS=-annot -g
 MENHIR_FLAGS=-v --infer
 all: pscala
 
 .PHONY: tests
 tests: pscala
-	bash run-tests
+	bash run_tests_parser.sh
+	bash run_tests_typer.sh
 
 pscala: $(CMO)
 	ocamlc $(FLAGS) -o $@ nums.cma $(CMO)
@@ -28,11 +29,11 @@ pscala: $(CMO)
 .mly.mli:
 	menhir $(MENHIR_FLAGS) $<
 
-parser.mly: ast.cmi parser_error.cmo
+menhir_parse.mly: ast.cmi
 
 clean:
 	rm -f *.cm[io] *.o *.annot *~ pscala $(GENERATED)
-	rm -f parser.output parser.automaton parser.conflicts
+	rm -f menhir_parse.output menhir_parse.automaton menhir_parse.conflicts
 	rm -f .depend
 	rm *.log *.aux *.synctex.gz
 

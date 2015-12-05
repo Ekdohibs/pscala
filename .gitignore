@@ -3,10 +3,10 @@
 *.cmi
 *.cmo
 *.annot
-parser.automaton
-parser.conflicts
-parser.ml
-parser.mli
+menhir_parse.automaton
+mehnir_parse.conflicts
+menhir_parse.ml
+menhir_parse.mli
 lexer.ml
 lexer.mli
 .depend
