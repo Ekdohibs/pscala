@@ -958,11 +958,21 @@ let type_class env c =
 					 !m_env.env_variables })
 			   m.desc.method_params m_types;
 	m_env := { !m_env with env_return_type = Some m_type };
-	let t = expr_type !m_env m.desc.method_body in
-	if not (is_subtype !m_env t.t_expr_type m_type) then
+	let et = expr_type !m_env m.desc.method_body in
+	if not (is_subtype !m_env et.t_expr_type m_type) then
 	  raise (Typing_error ((fun ff -> Format.fprintf ff
 	  "Incorrect method return value:@ type@, %a@ is not a subtype of type@, %a"
-	  print_type t.t_expr_type print_type m_type), m.location))
+	  print_type et.t_expr_type print_type m_type), m.location));
+	let t_meth = {
+	  m_param_types = tp;
+	  m_params = List.combine
+		  (List.map (fun p -> p.desc.par_name) m.desc.method_params)
+		  m_types;
+	  m_type = m_type;
+	  m_body = et;
+	} in
+	t_cl := { !t_cl with c_methods =
+				 Smap.add m.desc.method_name t_meth !t_cl.c_methods } 
   in
   let decl = function
 	| Dvar v -> decl_var v
@@ -976,7 +986,8 @@ let type_class env c =
 	env_classes = TNmap.add (TGlobal class_name) !cls
 							env.env_classes;
 	env_null_inherits = TNset.add (TGlobal class_name)
-								  env.env_null_inherits}
+								  env.env_null_inherits},
+  { !t_cl with c_vars = List.rev !t_cl.c_vars }
 
 let make_base_class inherits extends =
   { t_class_type_params = [];
@@ -1024,7 +1035,13 @@ let type_program prog =
 	env_local_index = 0;
   } in
   let env = ref base_env in
-  List.iter (fun cls -> env := type_class !env cls) prog.prog_classes;
+  let classes = ref Smap.empty in
+  let update cls =
+	let e, c = type_class !env cls in
+	env := e;
+	classes := Smap.add cls.desc.class_name c !classes
+  in
+  List.iter update prog.prog_classes;
   let main_class = { class_name = "Main";
 					 class_type_params = [];
 					 class_params = [];
@@ -1032,8 +1049,8 @@ let type_program prog =
 					 class_extends = (sugar { type_name = "Any ";
 											  arguments_type = [] },
 									  []) } in
-  env := type_class !env { desc = main_class;
-						   location = prog.prog_main.location };
+  update { desc = main_class;
+		   location = prog.prog_main.location };
   let err s = raise (Typing_error (s2f s, prog.prog_main.location)) in
   let main_class = TNmap.find (TGlobal "Main") !env.env_classes in
   let main_method =
