@@ -1,10 +1,10 @@
 open Ast
+open Type_ast
 exception Typing_error of
    (Format.formatter -> unit) * (Lexing.position * Lexing.position)
 
 module Smap = Map.Make(String)
 module Sset = Set.Make(String)
-let typer_debug = ref false
 					  
 type t_type_name =
   | TGlobal of p_ident
