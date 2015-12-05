@@ -34,6 +34,7 @@ clean:
 	rm -f *.cm[io] *.o *.annot *~ pscala $(GENERATED)
 	rm -f parser.output parser.automaton parser.conflicts
 	rm -f .depend
+	rm *.log *.aux *.synctex.gz
 
 .depend depend:$(GENERATED)
 	rm -f .depend

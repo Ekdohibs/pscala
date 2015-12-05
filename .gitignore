@@ -13,3 +13,6 @@ lexer.mli
 *.out
 pscala
 out
+*.log
+*.aux
+*.synctex.gz
