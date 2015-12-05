@@ -138,8 +138,8 @@ let print_env ff env =
 						else c)) env.env_classes;
   TNmap.iter (fun name c -> Format.fprintf ff "%a >: %a@\n"
 	 print_type_name name print_type c) env.env_constraints;
-  Smap.iter (fun name var -> Format.fprintf ff "%a@\n"
-	 print_var (name, var)) env.env_variables
+  Smap.iter (fun name (a, b, _) -> Format.fprintf ff "%a@\n"
+	 print_var (name, (a, b))) env.env_variables
 
 
 let s2f s ff = Format.fprintf ff "%s" s
@@ -293,16 +293,16 @@ let constraint_to_t env c =
   | Supertype t -> Tsupertype (p_to_t_type env t)
 
 let check_int t loc =
-  if t.t_type_name <> TGlobal "Int" then
+  if t.t_expr_type.t_type_name <> TGlobal "Int" then
 	raise (Typing_error ((fun ff -> Format.fprintf ff
 	  "Trying to perform arithmetic on type@, %a"
-	  print_type t), loc))
+	  print_type t.t_expr_type), loc))
 
 let check_bool t loc =
-  if t.t_type_name <> TGlobal "Boolean" then
+  if t.t_expr_type.t_type_name <> TGlobal "Boolean" then
 	raise (Typing_error ((fun ff -> Format.fprintf ff
 	  "Trying to perform boolean logic on type@, %a"
-	  print_type t), loc))
+	  print_type t.t_expr_type), loc))
 
 let recog_p_var_expr = function
   | Vvar _ -> true
@@ -322,7 +322,7 @@ let rec expr_type env e =
 				 t_expr = Tbool b }
   | Eunit -> { t_expr_type = type_s "Unit";
 			   t_expr = Tunit }
-  | Ethis -> let (_, typ) = Smap.find "this" env.env_variables in
+  | Ethis -> let (_, typ, _) = Smap.find "this" env.env_variables in
 			 { t_expr_type = typ;
 			   t_expr = Tthis }
   | Enull -> { t_expr_type = type_s "Null";
@@ -389,58 +389,83 @@ let rec expr_type env e =
 						  arguments_type = type_args } in
 	 let ct = p_to_t_type env { desc = created_type;
 								location = e.location }  in
-	 new_type env ct args e.location;
-	 ct
+	 let exprs = new_type env ct args e.location in
+	 { t_expr_type = ct;
+	   t_expr = Tnew (ct, exprs) }
   | Eunary (Uminus, e1) ->
-	 check_int (expr_type env e1) e.location; type_s "Int"
+	 let et1 = expr_type env e1 in
+	 check_int et1 e.location;
+	 { t_expr_type = type_s "Int";
+	   t_expr = Tunary (Uminus, et1) }
   | Eunary (Unot, e1) ->
-	 check_bool (expr_type env e1) e.location; type_s "Boolean"
-  | Ebinary ((Bplus | Bminus | Btimes | Bdiv | Bmod), e1, e2) ->
-	 check_int (expr_type env e1) e.location;
-	 check_int (expr_type env e2) e.location;
-	 type_s "Int"
-  | Ebinary ((Bequal | Bnotequal | Blt | Bgt | Ble | Bge), e1, e2) ->
-	 check_int (expr_type env e1) e.location;
-	 check_int (expr_type env e2) e.location;
-	 type_s "Boolean"
-  | Ebinary ((Band | Bor), e1, e2) ->
-	 check_bool (expr_type env e1) e.location;
-	 check_bool (expr_type env e2) e.location;
-	 type_s "Boolean"
-  | Ebinary ((Beq | Bne), e1, e2) ->
-	 let t1 = expr_type env e1 in
-	 let t2 = expr_type env e2 in
+	 let et1 = expr_type env e1 in
+	 check_bool et1 e.location;
+	 { t_expr_type = type_s "Boolean";
+	   t_expr = Tunary (Unot, et1) }
+  | Ebinary ((Bplus | Bminus | Btimes | Bdiv | Bmod) as op, e1, e2) ->
+	 let et1 = expr_type env e1 in
+	 let et2 = expr_type env e2 in
+	 check_int et1 e.location;
+	 check_int et2 e.location;
+	 { t_expr_type = type_s "Int";
+	   t_expr = Tbinary (op, et1, et2) }
+  | Ebinary ((Bequal | Bnotequal | Blt | Bgt | Ble | Bge) as op,
+			   e1, e2) ->
+	 let et1 = expr_type env e1 in
+	 let et2 = expr_type env e2 in
+	 check_int et1 e.location;
+	 check_int et2 e.location;
+	 { t_expr_type = type_s "Boolean";
+	   t_expr = Tbinary (op, et1, et2) }
+  | Ebinary ((Band | Bor) as op, e1, e2) ->
+	 let et1 = expr_type env e1 in
+	 let et2 = expr_type env e2 in
+	 check_bool et1 e.location;
+	 check_bool et2 e.location;
+	 { t_expr_type = type_s "Boolean";
+	   t_expr = Tbinary (op, et1, et2) }
+  | Ebinary ((Beq | Bne) as op, e1, e2) ->
+	 let et1 = expr_type env e1 in
+	 let et2 = expr_type env e2 in
 	 let c t = 
 	   if not (is_subtype env t (type_s "AnyRef")) then
 		 raise (Typing_error ((fun ff -> Format.fprintf ff
 		   "Trying to test equality of type@, %a,@ which is not a subtype of AnyRef"
 		   print_type t), e.location)) in
-	 c t1; c t2;
-	 type_s "Boolean";
+	 c et1.t_expr_type; c et2.t_expr_type;
+	 { t_expr_type = type_s "Boolean";
+	   t_expr = Tbinary (op, et1, et2) }
   | Eif (e1, e2, e3) ->
-	 let t1 = expr_type env e1 in
+	 let et1 = expr_type env e1 in
+	 let t1 = et1.t_expr_type in
 	 if t1.t_type_name <> TGlobal "Boolean" then
 	   raise (Typing_error ((fun ff -> Format.fprintf ff
 		"Trying to use a value of type@, %a@ inside a condition."
 		print_type t1), e.location));
-	 let t2 = expr_type env e2 in
-	 let t3 = expr_type env e3 in
-	 if is_subtype env t2 t3 then
-	   t3
-	 else if is_subtype env t3 t2 then
-	   t2
-	 else
-	   raise (Typing_error ((fun ff -> Format.fprintf ff
-		 "Neither of types of the \"then\" branch:@, %a@ and of the \"else\" branch:@, %a@ is a subtype of the other."
-		 print_type t2 print_type t2), e.location));
+	 let et2 = expr_type env e2 in
+	 let et3 = expr_type env e3 in
+	 let t2 = et2.t_expr_type in
+	 let t3 = et3.t_expr_type in
+	 { t_expr_type = 
+		 if is_subtype env t2 t3 then
+		   t3
+		 else if is_subtype env t3 t2 then
+		   t2
+		 else
+		   raise (Typing_error ((fun ff -> Format.fprintf ff
+		     "Neither of types of the \"then\" branch:@, %a@ and of the \"else\" branch:@, %a@ is a subtype of the other."
+		     print_type t2 print_type t2), e.location));
+	   t_expr = Tif (et1, et2, et3) }
   | Ewhile (e1, e2) ->
-	 let t1 = expr_type env e1 in
+	 let et1 = expr_type env e1 in
+	 let t1 = et1.t_expr_type in
 	 if t1.t_type_name <> TGlobal "Boolean" then
 	   raise (Typing_error ((fun ff -> Format.fprintf ff
 		"Trying to use a value of type@ %a@ inside condition of a while loop"
 		print_type t1), e.location));
-	 ignore (expr_type env e2);
-	 type_s "Unit";
+	 let et2 = expr_type env e2 in
+	 { t_expr_type = type_s "Unit";
+	   t_expr = Twhile (et1, et2) }
   | Ereturn None ->
 	 (match env.env_return_type with
 	   None -> raise (Typing_error
@@ -450,58 +475,80 @@ let rec expr_type env e =
 		  raise (Typing_error ((fun ff -> Format.fprintf ff
 		    "Trying to use return without argument in a method returning type %a:@ Unit is not a subtype of return type."
 			print_type t), e.location)));
-		(type_s "Nothing")
+	 { t_expr_type = type_s "Nothing";
+	   t_expr = Treturn { t_expr_type = type_s "Unit";
+						  t_expr = Tunit }
+	 }
   | Ereturn (Some e1) ->
+	 let et1 = expr_type env e1 in
+	 let t1 = et1.t_expr_type in
 	 (match env.env_return_type with
-	   None -> raise (Typing_error
-		(s2f "Trying to use return outside of a method", e.location))
+		None -> raise (Typing_error
+		  (s2f "Trying to use return outside of a method", e.location))
 	  | Some t ->
-		 let t1 = expr_type env e1 in
-		if not (is_subtype env t1 t) then
-		  raise (Typing_error ((fun ff -> Format.fprintf ff
-		    "Error in return: trying to return a value of type %a,@ which is not a subtype of return type %a."
-			print_type t1 print_type t), e.location)));
-		(type_s "Nothing")
-  | Eprint e1 -> let t1 = expr_type env e1 in
+		 if not (is_subtype env t1 t) then
+		   raise (Typing_error ((fun ff -> Format.fprintf ff
+		     "Error in return: trying to return a value of type %a,@ which is not a subtype of return type %a."
+			 print_type t1 print_type t), e.location)));
+	 { t_expr_type = type_s "Nothing";
+	   t_expr = Treturn et1 }
+  | Eprint e1 ->
+	 let et1 = expr_type env e1 in
+	 let t1 = et1.t_expr_type in
 	 if not (List.mem t1.t_type_name
 					  [TGlobal "Int"; TGlobal "String"]) then
 	   raise (Typing_error ((fun ff -> Format.fprintf ff
 		 "Error in print: trying to print a value of type %a,@ which is not an Int nor a String."
 		 print_type t1), e.location));
-	 type_s "Unit";
-  | Ebloc b -> let bl = b.desc in
-       let l1 = List.filter recog_p_var_expr bl in
-	   let l2 = List.map take_vvar l1 in
-	   check_unique (List.map
-			  (fun var -> (var.desc).var_name, var.location) l2)
-			  "Variable %s is already defined inside this block";
-       bloc_type env b.desc
+	 { t_expr_type = type_s "Unit";
+	   t_expr = Tprint et1 }
+  | Ebloc b ->
+	 let bl = b.desc in
+     let l1 = List.filter recog_p_var_expr bl in
+	 let l2 = List.map take_vvar l1 in
+	 check_unique (List.map
+	   (fun var -> (var.desc).var_name, var.location) l2)
+		 "Variable %s is already defined inside this block";
+     let t, bl = bloc_type env b.desc in
+	 { t_expr_type = t;
+	   t_expr = Tbloc bl }
 
 and access_type env acc =
   match acc.desc with
   | Avar id ->
-	 (try Smap.find id env.env_variables
+	 (try
+		 let (mut, tt, v) = Smap.find id env.env_variables in
+		 (mut, tt, Tvar v)
 	  with Not_found ->
-		   let _, this = Smap.find "this" env.env_variables in
+		   let _, this, _ = Smap.find "this" env.env_variables in
 		   let c = TNmap.find this.t_type_name env.env_classes in
-		   try Smap.find id c.t_class_vars
+		   try
+			 let (mut, tt) = Smap.find id c.t_class_vars in
+			 (mut, tt, Tfield ({
+								t_expr_type = this;
+								t_expr = Tthis
+							  }, id))
 		   with Not_found ->
 			 raise (Typing_error 
-			    ((fun ff -> Format.fprintf ff "Unbound variable: %s" id), 
+			  ((fun ff -> Format.fprintf ff "Unbound variable: %s" id),
 				acc.location)))
   | Afield (e, id) ->
-	 let t = expr_type env e in
+	 let et = expr_type env e in
+	 let t = et.t_expr_type in
 	 let c = TNmap.find t.t_type_name env.env_classes in
-	 let (mut, tt) = try Smap.find id c.t_class_vars
+	 try
+	   let (mut, tt) = Smap.find id c.t_class_vars in
+	   (mut, class_subst t.t_arguments_type tt,
+		Tfield (et, id))
 	 with Not_found ->
 	   if e.desc = Ethis && List.mem_assoc id c.t_class_params then
-		  (false, List.assoc id c.t_class_params)
+		 let (tt, index) = List.assoc id
+		  (List.mapi (fun i (a, b) -> (a, (b, i))) c.t_class_params) in
+		  (false, tt, Tvar (TClassParam (id, index)))
 	   else
 		 raise (Typing_error 
 		   ((fun ff -> Format.fprintf ff 
 		  "Type %a has no field %s" print_type t id), acc.location))
-	 in
-	 (mut, class_subst t.t_arguments_type tt)
 			 
 and new_type env t args loc =
   let c = TNmap.find t.t_type_name env.env_classes in
@@ -511,13 +558,15 @@ and new_type env t args loc =
 	  print_type t
 	  (List.length c.t_class_params)
 	  (List.length args)), loc));
-  List.iter2 (fun (_, arg_type) arg ->
+  List.map2 (fun (_, arg_type) arg ->
 	let at = class_subst t.t_arguments_type arg_type in
-    let at2 = expr_type env arg in
+    let arg2 = expr_type env arg in
+	let at2 = arg2.t_expr_type in
 	if not (is_subtype env at2 at) then
 	  raise (Typing_error ((fun ff -> Format.fprintf ff
 	    "Incorrect types in constructor of@, %a:@ type@, %a@ is not a subtype of type@, %a"
-		print_type t print_type at2 print_type at), arg.location));  
+		print_type t print_type at2 print_type at), arg.location));
+	arg2
   ) c.t_class_params args
 
 and var_type env var =
@@ -525,24 +574,41 @@ and var_type env var =
   | None -> expr_type env var.desc.var_expr
   | Some t ->
 	 let t = p_to_t_type env t in
-	 let t2 = expr_type env var.desc.var_expr in
+	 let et2 = expr_type env var.desc.var_expr in
+	 let t2 = et2.t_expr_type in
 	 if not (is_subtype env t2 t) then
 	   raise (Typing_error ((fun ff -> Format.fprintf ff
 		 "Incorrect type declaration of variable:@ type@, %a@ is not a subtype of type@, %a"
 		 print_type t2 print_type t), var.location));
-	 t
+	 { t_expr_type = t;
+	   t_expr = et2.t_expr }
 
 and bloc_type env b =
   match b with
-  |	[] -> type_s "Unit"
-  | [Vexpr e] -> expr_type env e
-  | Vexpr e :: bs -> ignore (expr_type env e); bloc_type env bs
+  |	[] -> type_s "Unit", []
+  | [Vexpr e] -> let et = expr_type env e in
+				 et.t_expr_type, [TVexpr et]
+  | Vexpr e :: bs ->
+	 let et = expr_type env e in
+	 let t, b = bloc_type env bs in
+	 t, (TVexpr et) :: b
   | Vvar v :: bs ->
-	 let t = var_type env v in
-	 let nenv = { env with env_variables =
-	   Smap.add v.desc.var_name
-				(v.desc.var_mutable, t) env.env_variables } in
-	 bloc_type nenv bs
+	 let et = var_type env v in
+	 let tv = TLocal (v.desc.var_name, env.env_local_index) in
+	 let nenv = { env with
+	  env_variables =
+		Smap.add v.desc.var_name
+				 (v.desc.var_mutable, et.t_expr_type, tv)
+				 env.env_variables;
+	  env_local_index = env.env_local_index + 1 } in
+	 let t, b = bloc_type nenv bs in
+	 t, (TVvar {
+			 t_var_mutable = v.desc.var_mutable;
+			 t_var_name = tv;
+			 t_var_type = et.t_expr_type;
+			 t_var_expr = et
+		   }) :: b
+	 
 
 let type_name t =
   match t with
@@ -572,6 +638,7 @@ let add_type_param_to_env env name constr =
 	env_variables = env.env_variables;
 	env_null_inherits = env.env_null_inherits;
 	env_return_type = None;
+	env_local_index = 0;
   }
 
 let extend_env env param_types is_method =
@@ -648,7 +715,6 @@ let variance_sign env name_t classe_t classe_p var_exp =
   List.iter (fun a -> 
      let (b,a_t) = Smap.find a.desc.var_name classe_t.t_class_vars in
      let typ = match a.desc.var_type with
-	 (* TODO utiliser les variables du typeur *)
 	 | None     -> dummy_parser_type a.location a_t
 	 | Some typ -> typ
 	 in if b then variance_type env name_t a_t typ var_exp 0 
@@ -735,21 +801,14 @@ let type_class env c =
 				 env_cnames = Smap.add class_name (TGlobal class_name)
 			   !class_env.env_cnames };
   update_class_env ();
-  List.iter
-	(fun (par_name, par_type) ->
+  List.iteri
+	(fun i (par_name, par_type) ->
 	 class_env := { !class_env with
-					env_variables = Smap.add par_name (false, par_type)
-											 !class_env.env_variables }
+	   env_variables = Smap.add par_name
+	       (false, par_type, TClassParam (par_name, i))
+		   !class_env.env_variables }
 	) params;
-  (*
-  List.iter
-	(fun (par_name, par_type) ->
-	 cls := { !cls with
-			  t_class_vars = Smap.add par_name (false, par_type)
-									  !cls.t_class_vars }
-	) params;
-  update_class_env ();
-   *)
+
   class_env := { !class_env with
 				 env_variables = Smap.add "this"
 				   (false,
@@ -759,10 +818,19 @@ let type_class env c =
 						  { t_type_name = TClassTvar (name, i, 0);
 							t_arguments_type = [] })
 								 type_params
-					} )
+					},
+				   TParam ("this", -1))
 				   !class_env.env_variables };
-  new_type !class_env ext (snd c.desc.class_extends)
-		   (list_loc (snd c.desc.class_extends));
+  let ext_el =
+	new_type !class_env ext (snd c.desc.class_extends)
+			 (list_loc (snd c.desc.class_extends)) in
+  let t_cl = ref {
+				 c_type_params = tp;
+				 c_params = params;
+				 c_vars = [];
+				 c_methods = Smap.empty;
+				 c_extends = ext, ext_el;
+			   } in
   let c_methods = List.map
 	(function | Dmethod m -> m | _ -> assert false)
 	(List.filter (function | Dmethod _ -> true | _ -> false)
@@ -777,10 +845,14 @@ let type_class env c =
 	  raise (Typing_error ((fun ff -> Format.fprintf ff
 		"Trying to redefine field %s of class %s, which is already defined"
 		v.desc.var_name class_name), v.location));
-	let t = var_type !class_env v in
+	let et = var_type !class_env v in
 	cls := { !cls with t_class_vars =
-				   Smap.add v.desc.var_name
-	    		   (v.desc.var_mutable, t) !cls.t_class_vars };
+						 Smap.add v.desc.var_name
+	    						  (v.desc.var_mutable, et.t_expr_type)
+								  !cls.t_class_vars };
+	t_cl := { !t_cl with c_vars =
+			  (v.desc.var_mutable, et.t_expr_type, v.desc.var_name)
+			  :: !t_cl.c_vars }; 
 	update_class_env ()
   in
   let decl_method m =
@@ -880,15 +952,17 @@ let type_class env c =
 	    "Trying to override non-existant method %s"
 		m.desc.method_name), m.location));
 	check_unique_params m.desc.method_params;
-	List.iter2 (fun p t -> m_env := { !m_env with env_variables =
-		   Smap.add p.desc.par_name (false, t) !m_env.env_variables })
+	iteri2 (fun i p t -> m_env := { !m_env with env_variables =
+			Smap.add p.desc.par_name
+					 (false, t, TParam (p.desc.par_name, i))
+					 !m_env.env_variables })
 			   m.desc.method_params m_types;
 	m_env := { !m_env with env_return_type = Some m_type };
 	let t = expr_type !m_env m.desc.method_body in
-	if not (is_subtype !m_env t m_type) then
+	if not (is_subtype !m_env t.t_expr_type m_type) then
 	  raise (Typing_error ((fun ff -> Format.fprintf ff
 	  "Incorrect method return value:@ type@, %a@ is not a subtype of type@, %a"
-	  print_type t print_type m_type), m.location))
+	  print_type t.t_expr_type print_type m_type), m.location))
   in
   let decl = function
 	| Dvar v -> decl_var v
@@ -947,6 +1021,7 @@ let type_program prog =
 	env_variables = Smap.empty;
 	env_null_inherits = TNset.empty;
 	env_return_type = None;
+	env_local_index = 0;
   } in
   let env = ref base_env in
   List.iter (fun cls -> env := type_class !env cls) prog.prog_classes;

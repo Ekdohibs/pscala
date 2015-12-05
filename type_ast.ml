@@ -37,7 +37,13 @@ type t_class_sig = {
   t_class_inherits : TNset.t;
   t_class_extends : t_type;
 }
-					  
+
+
+type t_variable =
+  | TLocal of (p_ident * int)
+  | TParam of (p_ident * int)
+  | TClassParam of (p_ident * int)					 
+					 
 type t_env = {
   env_cnames : t_type_name Smap.t;
   (* Les classes de l'environnement; inclut les types sans paramètres *)
@@ -45,15 +51,11 @@ type t_env = {
   (* Les contraintes de type *)
   env_constraints : t_type TNmap.t;
   (* Les variables, mutables ou non *)
-  env_variables : (bool * t_type) Smap.t;
+  env_variables : (bool * t_type * t_variable) Smap.t;
   env_null_inherits : TNset.t;
   env_return_type : t_type option;
+  env_local_index : int;
 }
-
-type t_variable =
-  | TLocal of (p_ident * int)
-  | TParam of (p_ident * int)
-  | TClassParam of (p_ident * int)
 
 type t_expr =
 	{ t_expr_type : t_type;
@@ -85,6 +87,7 @@ and t_access =
 
 and t_var = {
   t_var_mutable : bool;
+  (* Needed ? *)
   t_var_name : t_variable;
   t_var_type : t_type;
   t_var_expr : t_expr
@@ -110,7 +113,7 @@ type t_class = {
   (* idem methode *)
   c_type_params : (p_ident * t_param_type_constraint) list;
   c_params : (p_ident * t_type) list;
-  c_vars : (bool * t_type) Smap.t;
+  c_vars : (bool * t_type * p_ident) list;
   c_methods : t_method Smap.t;
   c_extends : t_type * (t_expr list)
 }
