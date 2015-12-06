@@ -71,7 +71,10 @@ and t_expr_desc =
   | Taccess of t_access
   | Tassign of t_access * t_expr
   (* TODO: on détermine la méthode appelée *) 
-  | Tcall of t_expr * p_ident * t_type list * t_expr list
+  (* | Tcall of t_expr * p_ident * t_type list * t_expr list *)
+  (* Le nom de la classe de base + de la méthode +
+       les arguments (y compris l'objet) *)
+  | Tcall of p_ident * p_ident * t_expr list
   | Tnew of t_type * t_expr list
   | Tunary of unary_op * t_expr
   | Tbinary of binary_op * t_expr * t_expr
@@ -86,8 +89,8 @@ and t_access =
   | Tfield of t_expr * p_ident
 
 and t_var = {
-  t_var_mutable : bool;
   (* Needed ? *)
+  t_var_mutable : bool;
   t_var_name : t_variable;
   t_var_type : t_type;
   t_var_expr : t_expr

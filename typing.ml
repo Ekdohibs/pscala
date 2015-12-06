@@ -382,8 +382,16 @@ let rec expr_type env e =
 		   "Argument type@, %a@ is not a subtype of expected type@, %a."
 		   print_type ea.t_expr_type print_type t2), loc))
 	   ) a_typed effective_types;
+	 let c_basename = ref t1.t_type_name in
+	 let is_global = function | TGlobal _ -> true | _ -> false in
+	 while not (is_global !c_basename) do
+	   c_basename := (TNmap.find !c_basename env.env_classes).
+					 t_class_extends.t_type_name
+	 done;
+	 let cb = match !c_basename with
+	   | TGlobal s -> s | _ -> assert false in
 	 { t_expr_type = subst m.t_method_type;
-	   t_expr = Tcall (et1, name, arg_types, List.map fst a_typed)
+	   t_expr = Tcall (cb, name, et1 :: (List.map fst a_typed))
 	 }
   | Enew (type_name, type_args, args) ->
 	 if type_name = "Main" then
@@ -1069,4 +1077,5 @@ let type_program prog =
 		  t_arguments_type = [type_s "String"] }] then
 	err "Function main has incorrect parameters";
   if main_method.t_method_type <> (type_s "Unit") then
-	err "Function main has incorrect return type"
+	err "Function main has incorrect return type";
+  !classes

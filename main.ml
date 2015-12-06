@@ -50,7 +50,7 @@ let prog = Debug.protect begin fun () ->
 	 end
 end
 let () = if !parse_only then exit 0
-let () = Debug.protect begin fun () ->
+let decorated = Debug.protect begin fun () ->
   try
 	Typing.type_program prog
   with
