@@ -104,11 +104,11 @@ Nous décorons également l'arbre de syntaxe abstraite au cours du
 typage, en ajoutant à chaque sous-expression son type. Au cours de
 cette phase, on effectue également les opérations suivantes~:
 \begin{itemize}
-\item{Détection de la portée des variables~: une variable peut soit
+\item{détection de la portée des variables~: une variable peut soit
     être une variable locale, soit un paramètre de la méthode appelée,
   soit un paramètre du constructeur de la classe à l'intérieur de
-  laquelle elle apparaît.}
-\item{Détection de la méthode appelée~: lors d'un appel de méthode, on
+  laquelle elle apparaît~;}
+\item{détection de la méthode appelée~: lors d'un appel de méthode, on
     identifie de quelle classe cette méthode provient (i.e. dans
     quelle classe cette méthode a été définie en premier, en remontant
     dans la hiérarchie des classes tant que cette méthode existe),
@@ -124,14 +124,14 @@ nouveaux tests (ceux dont le nom est de la forme \code{extra-*.scala}).
 
 Ces tests supplémentaires vérifient ces cas particuliers~:
 \begin{itemize}
-\item{Vérification du fait que la constante $-2^{31}$ est acceptée}
-\item{Vérification de la variance dans un champ d'une classe dont le
-    type n'est pas précisé dans le programme}
-\item{Vérification de la bonne gestion des variables de type lorsque
+\item{vérification du fait que la constante $-2^{31}$ est acceptée~;}
+\item{vérification de la variance dans un champ d'une classe dont le
+    type n'est pas précisé dans le programme~;}
+\item{vérification de la bonne gestion des variables de type lorsque
     leur nom est commun à un paramètre de méthode et à un paramètre de
-  classe, ou à une classe définie précédemment}
-\item{Vérification de la bonne gestion de variables de type nommées
-    comme une classe standard (\code{Int}, \code{Unit}, ...)}
+  classe, ou à une classe définie précédemment~;}
+\item{vérification de la bonne gestion de variables de type nommées
+    comme une classe standard (\code{Int}, \code{Unit}, ...).}
 \end{itemize}
 
 \end{document}
