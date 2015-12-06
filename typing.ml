@@ -382,10 +382,15 @@ let rec expr_type env e =
 		   print_type ea.t_expr_type print_type t2), loc))
 	   ) a_typed effective_types;
 	 let c_basename = ref t1.t_type_name in
-	 let is_global = function | TGlobal _ -> true | _ -> false in
-	 while not (is_global !c_basename) do
-	   c_basename := (TNmap.find !c_basename env.env_classes).
-					 t_class_extends.t_type_name
+	 let parent c = (TNmap.find c env.env_classes).
+					t_class_extends.t_type_name in
+	 let is_child c =
+	   let c2 = TNmap.find (parent c) env.env_classes in
+	   Smap.mem name c2.t_class_methods
+	 in
+	 while is_child !c_basename do
+	   c_basename := parent !c_basename;
+	   Debug.debug "%s %a@." name print_type_name !c_basename
 	 done;
 	 let cb = match !c_basename with
 	   | TGlobal s -> s | _ -> assert false in
