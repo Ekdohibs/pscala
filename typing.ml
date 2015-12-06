@@ -282,10 +282,10 @@ let rec p_to_t_type env t =
 	   "Incorrect number of arguments for class %s: expected %d, got %d" 
 	   name (List.length p_types) (List.length args)), t.location));
   let t_args = List.map (p_to_t_type env) t.desc.arguments_type in
-  List.iter2
-	(fun (tt, typ) (_, cstr, _) ->
+  List.iter3
+	(fun tt typ (_, cstr, _) ->
 	 check_bounds env (class_subst t_args) typ cstr tt.location
-	) (List.combine t.desc.arguments_type t_args) p_types;
+	) t.desc.arguments_type t_args p_types;
   { t_type_name = ct;
 	t_arguments_type = t_args
   }
@@ -369,10 +369,9 @@ let rec expr_type env e =
 		 name print_type_name t1.t_type_name
 		 (List.length effective_types) (List.length args)),
 							e.location));
-	 List.iter2 (fun (_, constr) (t, tt) ->
+	 List.iter3 (fun (_, constr) t tt ->
 				 check_bounds env subst t constr tt.location
-				) m.t_method_param_types
-				(List.combine arg_types t_params);
+				) m.t_method_param_types arg_types t_params;
 
 	 let a_typed = List.map (fun arg ->
 	   (expr_type env arg, arg.location)) args in

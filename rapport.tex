@@ -68,12 +68,12 @@ problèmes~: en effet, elles ne peuvent pas être reconnues
 immédiatement par l'analyseur lexical, puisque celui-ci n'est pas
 capable d'identifier si le symbole \code{-} devant la constante est
 celui de la constante, ou est un opérateur binaire. De plus, nous
-n'avons pas réussi à écrire une grammaire qui permettrait de détecter
-ces constantes négatives lors de l'analyse syntaxique. Ce que nous
-avons dont fait a été de rajouter une phase de traitement après
-l'analyse syntaxique, où les \code{-} unaires précédant un entier sont
-transformés en constantes entières négatives, et où les débordements
-de constantes sont détectés.
+n'avons pas réussi à écrire une grammaire sans conflits
+qui permettrait de détecter ces constantes négatives lors de l'analyse
+syntaxique. Ce que nous avons dont fait a été de rajouter une phase de
+traitement après l'analyse syntaxique, où les \code{-} unaires
+précédant un entier sont transformés en constantes entières négatives,
+et où les débordements de constantes sont détectés.
 
 \subsection{Typeur}
 
@@ -85,6 +85,13 @@ De la même façon, nous avons choisi d'utiliser une structure de type
 \code{Map} au lieu de \code{Hashtbl} pour avoir des environnements
 persistants.
 
+Nous avons géré les paramètres de constructeur de classe comme des
+champs privés, auquels on ne peut accéder que si l'expression de
+l'objet est \code{this}. Ainsi, si \code{a} est un paramètre du
+constructeur de la classe T, les expressions \code{a} et \code{this.a}
+sont autorisées, tandis que \code{(new T(0)).a} et \code{\{();
+  this\}.a} ne le sont pas, comme en Scala.
+
 Dans le calcul de la variance, nous avons dû prendre un double
 paramètre en permanence~: la classe (ou le type, selon les arguments
 nécessaires pour chaque fonction) créée par le typeur et celle fournie
@@ -92,6 +99,21 @@ par l'analyseur syntaxique, les premiers portant les information de
 typage qui a déjà été fait (portée des variables de type, type des
 champs lorsque celui-ci n'est pas précisé en particulier), et les
 deuxième portant la localisation à afficher en cas d'erreur.
+
+Nous décorons également l'arbre de syntaxe abstraite au cours du
+typage, en ajoutant à chaque sous-expression son type. Au cours de
+cette phase, on effectue également les opérations suivantes~:
+\begin{itemize}
+\item{Détection de la portée des variables~: une variable peut soit
+    être une variable locale, soit un paramètre de la méthode appelée,
+  soit un paramètre du constructeur de la classe à l'intérieur de
+  laquelle elle apparaît}
+\item{Détection de la méthode appelée~: lors d'un appel de méthode, on
+  identifie de quelle classe cette méthode provient (en particulier
+  lorsque l'objet dont on appelle la méthode a pour type un paramètre
+  de type de classe ou de méthode), afin de pouvoir compiler ces
+  appels ultérieurement}
+\end{itemize}
 
 \section{Tests supplémentaires}
 

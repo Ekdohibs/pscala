@@ -115,8 +115,11 @@ type t_method = {
 type t_class = {
   (* idem methode *)
   c_type_params : (p_ident * t_param_type_constraint) list;
+  (* Par contre, là il faut garder le nom, puisque c'est
+     comme un champ... *)
   c_params : (p_ident * t_type) list;
   c_vars : (bool * t_type * p_ident) list;
   c_methods : t_method Smap.t;
   c_extends : t_type * (t_expr list)
 }
+
