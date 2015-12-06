@@ -89,8 +89,13 @@ Nous avons géré les paramètres de constructeur de classe comme des
 champs privés, auquels on ne peut accéder que si l'expression de
 l'objet est \code{this}. Ainsi, si \code{a} est un paramètre du
 constructeur de la classe T, les expressions \code{a} et \code{this.a}
-sont autorisées, tandis que \code{(new T(0)).a} et \code{\{();
-  this\}.a} ne le sont pas, comme en Scala.
+sont autorisées, tandis que \code{(new~T(0)).a} et
+\code{\{();~this\}.a} ne le sont pas, comme en Scala. Une autre
+possibilité aurait été d'accepter les accès de ce type uniquement
+lorsque le type de l'expression de laquelle on essaie d'accéder au
+paramètre du constructeur est exactement celle de la classe (et non
+pas un sous-type de celle-ci), ce qui aurait préservé la sûreté du
+typage, mais nous avons choisi de faire comme Scala pour ce point-là.
 
 Dans le calcul de la variance, nous avons dû prendre un double
 paramètre en permanence~: la classe (ou le type, selon les arguments
