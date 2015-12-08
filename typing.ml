@@ -398,13 +398,30 @@ let rec expr_type env e =
 	   t_expr = Tcall (cb, name, et1 :: (List.map fst a_typed))
 	 }
   | Enew (type_name, type_args, args) ->
-	 if type_name = "Main" then
-	   raise (Typing_error (s2f
-		 "Trying to instanciation singleton object Main", e.location));
 	 let created_type = { type_name = type_name;
 						  arguments_type = type_args } in
 	 let ct = p_to_t_type env { desc = created_type;
 								location = e.location }  in
+	 if ct.t_type_name = TGlobal "Main" then
+	   raise (Typing_error (s2f
+		 "Trying to instanciate singleton object Main", e.location));
+	 if List.mem ct.t_type_name
+	   [ TGlobal "Null"; TGlobal "Nothing"; TGlobal "Array";
+		 TGlobal "String"; TGlobal "Boolean"; TGlobal "Int";
+	     TGlobal "Unit"; TGlobal "AnyVal"; TGlobal "AnyRef";
+	     TGlobal "Any" ] then
+	   raise (Typing_error ((fun ff -> Format.fprintf ff
+		 "Trying to create an object of type %a, which is not permitted"
+		 print_type_name ct.t_type_name), e.location));
+	 let ok, tp = match ct.t_type_name with
+		 TGlobal _ -> true, ""
+	   | TClassTvar _ -> false, "class"
+	   | TMethodTvar _ -> false, "method"
+	 in
+	 if not ok then
+	   raise (Typing_error ((fun ff -> Format.fprintf ff
+		 "Trying to create a new object of class %a, which is a %s type parameter"
+		 print_type_name ct.t_type_name tp), e.location));
 	 let exprs = new_type env ct args e.location in
 	 { t_expr_type = ct;
 	   t_expr = Tnew (ct, exprs) }

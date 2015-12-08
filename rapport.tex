@@ -100,7 +100,7 @@ typage, mais nous avons choisi de faire comme Scala pour ce point-là.
 Dans le calcul de la variance, nous avons dû prendre un double
 paramètre en permanence~: la classe (ou le type, selon les arguments
 nécessaires pour chaque fonction) créée par le typeur et celle fournie
-par l'analyseur syntaxique, les premiers portant les information de
+par l'analyseur syntaxique, les premiers portant les informations de
 typage qui a déjà été fait (portée des variables de type, type des
 champs lorsque celui-ci n'est pas précisé en particulier), et les
 deuxième portant la localisation à afficher en cas d'erreur.
@@ -120,12 +120,32 @@ cette phase, on effectue également les opérations suivantes~:
     afin de pouvoir compiler ces appels ultérieurement.}
 \end{itemize}
 
+\textit{Modification -- 08/12/2015}~:
+Nous avons remarqué que l'instanciation de paramètres de types, ou de
+classes définies par défaut peuvent conduire à une perte de la sûreté
+du système de typage~: en effet, cela permet en particulier une
+création d'objets de type \code{Nothing}. On ne peut pas non plus
+créer d'instance d'un paramètre de type, même si celui-ci est déclaré
+comme héritant d'une autre classe, puisque les arguments du
+constructeur peuvent différer (et même changer de nombre) entre une
+classe et une classe dont elle hérite~! Par conséquent, nous avons
+interdit toute instanciation d'un paramètre de type d'une classe,
+ainsi que des classes de base (pour celles-ci, l'instantiation devant
+soit être interdite, soit est inutile car correspond à créer des
+objets de type \code{Unit}, \code{Int}, \code{String} ou
+\code{Boolean}, pour lesquels il existe déjà d'autres manières de les
+créer, soit de type \code{Any}, \code{AnyRef} ou \code{AnyVal}, qui
+n'ont aucune utilité, car il n'est rien possible de faire avec ces
+objets).
+
+
 \section{Tests supplémentaires}
 
-Nous nous sommes que, bien que notre compilateur passe déjà tous les
-tests fournis pour le projet, il ne se comportait pas comme il aurait
-dû dans certains cas particuliers. Nous avons donc créé quelques
-nouveaux tests (ceux dont le nom est de la forme \code{extra-*.scala}).
+Nous nous aperçus sommes que, bien que notre compilateur passe déjà
+tous les tests fournis pour le projet, il ne se comportait pas comme
+il aurait dû dans certains cas particuliers. Nous avons donc créé
+quelques nouveaux tests (ceux dont le nom est de la forme
+\code{extra-*.scala}).
 
 Ces tests supplémentaires vérifient ces cas particuliers~:
 \begin{itemize}
@@ -137,6 +157,9 @@ Ces tests supplémentaires vérifient ces cas particuliers~:
   classe, ou à une classe définie précédemment~;}
 \item{vérification de la bonne gestion de variables de type nommées
     comme une classe standard (\code{Int}, \code{Unit}, ...).}
+\item{\textit{Modification -- 08/12/2015}~: vérification qu'il est
+    impossible d'instancier des paramètres de types ou des classes de
+    base.}
 \end{itemize}
 
 \end{document}
