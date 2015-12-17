@@ -55,6 +55,11 @@ suite sans séparateur (mais que tous les opérateurs ne sont pas
 réduits à un signe) nous avons réalisé leur reconnaissance en écrivant
 un cas par opérateur.
 
+\textit{Modification -- 17/12/2015}~:
+Nous avons corrigé un bug dans la localisation des erreurs~: en effet,
+l'analyseur lexical ne mettait pas à jour les numéros de ligne au
+cours d'un commentaire s'étendant sur plusieurs lignes.
+
 \subsection{Analyseur syntaxique}
 
 
@@ -138,6 +143,10 @@ créer, soit de type \code{Any}, \code{AnyRef} ou \code{AnyVal}, qui
 n'ont aucune utilité, car il n'est rien possible de faire avec ces
 objets).
 
+\textit{Modification -- 17/12/2015}~:
+Dans la continuité de la modification précédente, il ne doit pas non
+plus être possible d'étendre un paramètre de type, ceci permettant en
+effet de créer des types mal formés.
 
 \section{Tests supplémentaires}
 
@@ -160,6 +169,8 @@ Ces tests supplémentaires vérifient ces cas particuliers~:
 \item{\textit{Modification -- 08/12/2015}~: vérification qu'il est
     impossible d'instancier des paramètres de types ou des classes de
     base.}
+\item{\textit{Modification -- 17/12/2015}~: vérification qu'il est
+    impossible d'étendre un paramètre de type.}
 \end{itemize}
 
 \end{document}
