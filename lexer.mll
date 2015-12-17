@@ -88,6 +88,7 @@ and comment_line = parse
   | eof		{ EOF }
 
 and comment_base = parse
+  | "\n"			{ newline lexbuf; comment_base lexbuf }
   | "*/"			{ token lexbuf }
   | _				{ comment_base lexbuf }
   | eof				{ raise (Lexing_error "Commentaire non terminé") }
