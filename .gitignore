@@ -16,3 +16,6 @@ out
 *.log
 *.aux
 *.synctex.gz
+tests/**
+!tests/**/*.scala
+!tests/**/*.out

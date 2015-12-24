@@ -10,15 +10,15 @@ echo "Tests positifs (fichiers dans tests/exec/)"
 for f in tests/exec/*.scala; do
     max=`expr $max + 1`;
     echo $f
-    base=`dirname $f`/`basename $f .scala`
+    nm=`dirname $f`/`basename $f .scala`
     rm -f out
     ./pscala $f > out
     result=$?
     if (( $result == 0 )) ; then
-        gcc $(base).s -o $base
+        gcc $nm.s -o $nm
         if (( $? == 0 )) ; then
-          if $base > out; then
-            if cmp --quiet out $(base).out; then
+          if $nm > out; then
+            if cmp --quiet out $nm.out; then
               score=`expr $score + 1`;
             else
               echo "  ECHEC : mauvaise sortie pour $f"
@@ -43,14 +43,14 @@ echo "Tests négatifs (fichiers dans tests/exec-fail/)"
 for f in tests/exec-fail/*.scala; do
     max=`expr $max + 1`;
     echo $f
-    base=`dirname $f`/`basename $f .scala`
+    nm=`dirname $f`/`basename $f .scala`
     rm -f out
     ./pscala $f > out
     result=$?
     if (( $result == 0 )) ; then
-        gcc $(base).s -o $base
+        gcc $nm.s -o $nm
         if (( $? == 0 )) ; then
-          if $base > out; then
+          if $nm > out; then
             echo "  ECHEC : l'éxécution de $f devrait échouer"
           else
             score=`expr $score + 1`;

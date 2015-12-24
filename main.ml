@@ -67,4 +67,6 @@ let () = if !type_only then exit 0
 let asm = Debug.protect begin fun () ->
   Code_production.produce_code decorated
 end
+let asm_filename = (Filename.chop_suffix file ".scala") ^ ".s"
+let () = X86_64.print_in_file asm_filename asm
 let () = exit 0
