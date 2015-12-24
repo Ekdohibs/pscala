@@ -11,7 +11,7 @@ for f in tests/typing/good/*.scala tests/exec/*.scala tests/exec-fail/*.scala; d
     max=`expr $max + 1`;
     echo $f
     rm -f out
-    ./pscala $f > out
+    ./pscala --type-only $f > out
     result=$?
     if (( $result == 0 )) ; then
         score=`expr $score + 1`;
@@ -30,7 +30,7 @@ for f in tests/typing/bad/*.scala; do
     max=`expr $max + 1`;
     echo $f
     rm -f out
-    ./pscala $f > out 2>&1
+    ./pscala --type-only $f > out 2>&1
     result=$?
     if (( $result == 1 )) ; then
         score=`expr $score + 1`;

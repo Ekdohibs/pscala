@@ -1,4 +1,4 @@
-CMO=debug.cmo menhir_parse.cmo parser.cmo lexer.cmo type_ast.cmo typing.cmo main.cmo
+CMO=debug.cmo menhir_parse.cmo parser.cmo lexer.cmo type_ast.cmo typing.cmo code_production.cmo main.cmo
 GENERATED = lexer.ml menhir_parse.ml menhir_parse.mli
 FLAGS=-annot -g
 MENHIR_FLAGS=-v --infer

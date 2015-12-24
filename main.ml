@@ -3,9 +3,11 @@ open Format
 	   
 let usage = "usage: pscala [options] file.scala"
 let parse_only = ref false
+let type_only = ref false
 let spec =
   [
     "--parse-only", Arg.Set parse_only, "  stop after parsing";
+	"--type-only", Arg.Set type_only, "  stop after typing";
 	"-G", Arg.Set Debug.enable_debug, "  show debug messages";
   ]
 
@@ -60,5 +62,9 @@ let decorated = Debug.protect begin fun () ->
 	   eprintf "Typing error:@ %t@." e;
 	   exit 1
 	 end
+end
+let () = if !type_only then exit 0
+let asm = Debug.protect begin fun () ->
+  Code_production.produce_code decorated
 end
 let () = exit 0
