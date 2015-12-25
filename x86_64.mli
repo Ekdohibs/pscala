@@ -342,6 +342,9 @@ val dword : int list -> data
 val dint : int list -> data
 val dquad : int list -> data
   (** place une liste de valeurs sur 1/2/4/8 octets dans la zone data *)
+val address : label list -> data
+  (** place une liste d'addresses dans la zone data *)
+
 
 val space: int -> data
   (** [space n] alloue [n] octets (valant 0) dans le segment de données *)

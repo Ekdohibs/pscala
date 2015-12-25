@@ -26,9 +26,11 @@ for f in tests/exec/*.scala; do
           else
             echo "  ECHEC de l'éxécution pour $f"
           fi
+          rm -f $nm
         else
           echo "  ECHEC de la compilation de l'assembleur produit pour $f"
         fi
+        rm -f $nm.s
     elif (( $result == 1 )) ; then
         echo "  ECHEC de la compilation pour $f"
     else
@@ -55,9 +57,11 @@ for f in tests/exec-fail/*.scala; do
           else
             score=`expr $score + 1`;
           fi
+          rm -f $nm
         else
           echo "  ECHEC de la compilation de l'assembleur produit pour $f"
         fi
+        rm -f $nm.s
     elif (( $result == 1 )) ; then
         echo "  ECHEC de la compilation pour $f"
     else
