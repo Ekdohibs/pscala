@@ -5,14 +5,14 @@ let make_label = begin
 	let label_index = ref 0 in
 	(fun s ->
      incr label_index;
-	 "L_" ^ s ^ "_" ^ (string_of_int !label_index))
+	 Format.sprintf "L_%s_%d" s !label_index)
   end
 
 let make_data_label = begin
 	let label_index = ref 0 in
 	(fun s ->
      incr label_index;
-	 "R_" ^ s ^ "_" ^ (string_of_int !label_index))
+	 Format.sprintf "R_%s_%d" s !label_index)
   end
 				   
 let method_label = begin
@@ -30,10 +30,10 @@ let method_label = begin
 	 in
 	 try Hashtbl.find t (class_name, method_name) with
 	   Not_found ->
-	   let lname = ref ("M_" ^ class_name ^ "_" ^ method_name) in
+	   let lname = ref (Format.sprintf "M_%s_%s" class_name method_name) in
 	   let c = ref 1 in
 	   while not (try_create !lname) do
-		 lname := "M_" ^ class_name ^ "_" ^ method_name ^ "_" ^ (string_of_int !c);
+		 lname := Format.sprintf "M_%s_%s_%d" class_name method_name !c;
 		 incr c
 	   done;
 	   !lname)
