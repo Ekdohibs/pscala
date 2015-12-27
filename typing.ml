@@ -1069,10 +1069,12 @@ let type_program prog =
   } in
   let env = ref base_env in
   let classes = ref Smap.empty in
+  let l_classes = ref [] in
   let update cls =
 	let e, c = type_class !env cls in
 	env := e;
-	classes := Smap.add cls.desc.class_name c !classes
+	classes := Smap.add cls.desc.class_name c !classes;
+	l_classes := (cls.desc.class_name, c) :: !l_classes
   in
   List.iter update prog.prog_classes;
   let main_class = { class_name = "Main";
@@ -1099,4 +1101,4 @@ let type_program prog =
 	err "Function main has incorrect parameters";
   if main_method.t_method_type <> (type_s "Unit") then
 	err "Function main has incorrect return type";
-  !classes
+  List.rev !l_classes
