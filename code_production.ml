@@ -8,6 +8,13 @@ let make_label = begin
 	 "L_" ^ s ^ "_" ^ (string_of_int !label_index))
   end
 
+let make_data_label = begin
+	let label_index = ref 0 in
+	(fun s ->
+     incr label_index;
+	 "R_" ^ s ^ "_" ^ (string_of_int !label_index))
+  end
+				   
 let method_label = begin
 	let t = Hashtbl.create 17 in
 	let existing = Hashtbl.create 17 in
