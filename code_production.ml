@@ -65,6 +65,7 @@ let make_base_repr parent = {
   r_lmethods = []; r_parent = parent;
   r_cp_offset = 0
 }
+
 let br = [
   "Any", make_base_repr "Any";
   "AnyRef", make_base_repr "Any"
@@ -197,7 +198,13 @@ let compile_class c_name cls reprs =
 	  ret
 	 ) (Smap.bindings cls.c_methods) in
   List.fold_left (+++) constr methods
-		   
+
+let create c_name reprs =
+  let repr = Smap.find c_name reprs in
+  movq (imm (8 * (repr.r_num_fields + 1))) (reg rdi) ++
+	call "malloc" ++
+	movq (ilab (descr_label c_name)) (ind rax)
+				 
 let produce_code prog =
   let reprs = compute_reprs prog in
   let r_data = reprs_data reprs in
@@ -205,10 +212,18 @@ let produce_code prog =
 	 (List.map (fun (c_name, cls) -> compile_class c_name cls reprs)
 			   prog) in
   {
-	text = glabel "main" ++
-		 xorq (reg rax) (reg rax) ++
-		 ret ++
-		 c_text
+	text =
+	  glabel "main" ++
+		create "Main" reprs ++
+		pushq (reg rax) ++
+		call (constr_label "Main") ++
+		pushq (imm 0) ++ (* Le tableau contenant les arguments, pas utilisé *)
+		call (method_label "Main" "main") ++
+		stack_free 2 ++
+
+		xorq (reg rax) (reg rax) ++
+		ret ++
+		c_text
     ;
     data = r_data ++ c_data
   }
