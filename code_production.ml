@@ -152,7 +152,13 @@ let stack_reserve n =
 let stack_free n =
   if n = 0 then nop else
 	addq (imm (8 * n)) (reg rsp) 
-	   
+
+let create c_name reprs =
+  let repr = Smap.find c_name reprs in
+  movq (imm (8 * (repr.r_num_fields + 1))) (reg rdi) ++
+	call "malloc" ++
+	movq (ilab (descr_label c_name)) (ind rax)
+		 
 let compile_expr expr reprs num_args = (nop, nop)
 	   
 let compile_class c_name cls reprs =
@@ -198,12 +204,6 @@ let compile_class c_name cls reprs =
 	  ret
 	 ) (Smap.bindings cls.c_methods) in
   List.fold_left (+++) constr methods
-
-let create c_name reprs =
-  let repr = Smap.find c_name reprs in
-  movq (imm (8 * (repr.r_num_fields + 1))) (reg rdi) ++
-	call "malloc" ++
-	movq (ilab (descr_label c_name)) (ind rax)
 				 
 let produce_code prog =
   let reprs = compute_reprs prog in
