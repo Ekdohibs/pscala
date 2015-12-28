@@ -139,9 +139,12 @@ and bloc_locals_size = function
 	 | TLocal (_, i) -> max s (i + 1)
 	 | _ -> s
 
-let get_arg k num_args =
-  ind ~ofs:(-8 * (num_args - k + 1)) rbp
-			  
+let access_arg k num_args =
+  ind ~ofs:(8 * (num_args - k + 1)) rbp
+
+let access_local k =
+  ind ~ofs:(-8 * (k + 1)) rbp
+	  
 let set_field k =
   movq (reg rax) (ind ~ofs:(8 * (k + 1)) rsi)
 
@@ -174,10 +177,10 @@ let compile_class c_name cls reprs =
 	 List.fold_left (+++) (nop, nop)
 	  (List.mapi (fun i expr ->
 		compile_expr expr reprs 0 ++@
-		  movq (get_arg 0 1) (reg rsi) ++@
+		  movq (access_arg 0 1) (reg rsi) ++@
 		  set_field (i + parent_cp_off))
 		 (snd cls.c_extends)) ++@
-	   pushq (get_arg 0 1) ++@
+	   pushq (access_arg 0 1) ++@
 	   call (constr_label repr.r_parent) ++@
 	   stack_free 1
   in
@@ -189,7 +192,7 @@ let compile_class c_name cls reprs =
 	  List.fold_left (+++) (nop, nop)
 	   (List.mapi (fun i (_, expr, _) ->
 		 compile_expr expr reprs 0 ++@
-		   movq (get_arg 0 1) (reg rsi) ++@
+		   movq (access_arg 0 1) (reg rsi) ++@
 		   set_field (i + off)) cls.c_vars) ++@
 	  leave ++@
 	  ret
