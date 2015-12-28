@@ -2,6 +2,11 @@ open Ast
 open Type_ast
 open X86_64
 
+let (+++) (x1, y1) (x2, y2) = (x1 ++ x2, y1 ++ y2)
+let (++@) (x1, y1) x2 = (x1 ++ x2, y1)
+let leave : text = inline "\tleave\n"
+let enter = pushq (reg rbp) ++ movq (reg rsp) (reg rbp)
+						  
 let make_label = begin
 	let label_index = ref 0 in
 	(fun s ->
@@ -105,14 +110,105 @@ let reprs_data reprs =
 	   (fun mn -> method_label (snd (Smap.find mn repr.r_methods)) mn)
 	   repr.r_lmethods))
 	reprs nop
-	
+
+let rec expr_locals_size expr = match expr.t_expr with
+  | Tint _ | Tstring _ | Tbool _ | Tunit | Tthis | Tnull -> 0
+  | Taccess a -> access_locals_size a
+  | Tassign (a, e) -> max (access_locals_size a) (expr_locals_size e)
+  | Tcall (_, _, l) | Tnew (_, l) ->
+		List.fold_left max 0 (List.map expr_locals_size l)
+  | Tunary (_, e) | Treturn e | Tprint e -> expr_locals_size e
+  | Tbinary (_, e1, e2) | Twhile (e1, e2) ->
+	   max (expr_locals_size e1) (expr_locals_size e2)
+  | Tif (e1, e2, e3) ->
+	 max (max (expr_locals_size e1) (expr_locals_size e2))
+		 (expr_locals_size e3)
+  | Tbloc b -> bloc_locals_size b
+					   
+and access_locals_size = function
+  | Tvar _ -> 0
+  | Tfield (e, _) -> expr_locals_size e
+
+and bloc_locals_size = function
+  | [] -> 0
+  | (TVexpr e) :: b -> max (expr_locals_size e) (bloc_locals_size b)
+  | (TVvar v) :: b ->
+	 let s = max (expr_locals_size v.t_var_expr) (bloc_locals_size b) in
+	 match v.t_var_name with
+	 | TLocal (_, i) -> max s (i + 1)
+	 | _ -> s
+
+let get_arg k num_args =
+  ind ~ofs:(-8 * (num_args - k + 1)) rbp
+			  
+let set_field k =
+  movq (reg rax) (ind ~ofs:(8 * (k + 1)) rsi)
+
+let stack_reserve n =
+  if n = 0 then nop else
+	addq (imm (-8 * n)) (reg rsp) 
+
+let stack_free n =
+  if n = 0 then nop else
+	addq (imm (8 * n)) (reg rsp) 
+	   
+let compile_expr expr reprs num_args = (nop, nop)
+	   
+let compile_class c_name cls reprs =
+  let repr = Smap.find c_name reprs in
+  let off = repr.r_cp_offset + List.length cls.c_params in
+  let no_parent_constr = List.mem repr.r_parent ["Any"; "AnyRef"] in
+  let locals_size =
+   List.fold_left max 0 (List.map expr_locals_size
+    (snd cls.c_extends @ (List.map (fun (_, e, _) -> e) cls.c_vars)))
+  in
+  let parent_call = if no_parent_constr then (nop, nop) else
+	 let parent_cp_off = (Smap.find repr.r_parent reprs).r_cp_offset in
+	 List.fold_left (+++) (nop, nop)
+	  (List.mapi (fun i expr ->
+		compile_expr expr reprs 0 ++@
+		  movq (get_arg 0 1) (reg rsi) ++@
+		  set_field (i + parent_cp_off))
+		 (snd cls.c_extends)) ++@
+	   pushq (get_arg 0 1) ++@
+	   call (constr_label repr.r_parent) ++@
+	   stack_free 1
+  in
+  let constr =
+	(label (constr_label c_name), nop) ++@
+	  enter ++@
+	  stack_reserve locals_size +++
+	  parent_call +++
+	  List.fold_left (+++) (nop, nop)
+	   (List.mapi (fun i (_, expr, _) ->
+		 compile_expr expr reprs 0 ++@
+		   movq (get_arg 0 1) (reg rsi) ++@
+		   set_field (i + off)) cls.c_vars) ++@
+	  leave ++@
+	  ret
+  in
+  let methods = List.map (fun (name, m) ->
+	let locals_size = expr_locals_size m.m_body in
+	(label (method_label c_name name), nop) ++@
+	  enter ++@
+	  stack_reserve locals_size +++
+	  compile_expr m.m_body reprs (List.length m.m_params) ++@
+	  leave ++@
+	  ret
+	 ) (Smap.bindings cls.c_methods) in
+  List.fold_left (+++) constr methods
+		   
 let produce_code prog =
   let reprs = compute_reprs prog in
   let r_data = reprs_data reprs in
+  let (c_text, c_data) = List.fold_left (+++) (nop, nop)
+	 (List.map (fun (c_name, cls) -> compile_class c_name cls reprs)
+			   prog) in
   {
 	text = glabel "main" ++
 		 xorq (reg rax) (reg rax) ++
-		 ret
+		 ret ++
+		 c_text
     ;
-    data = r_data
+    data = r_data ++ c_data
   }

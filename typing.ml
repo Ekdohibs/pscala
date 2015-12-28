@@ -884,7 +884,7 @@ let type_class env c =
 	    						  (v.desc.var_mutable, et.t_expr_type)
 								  !cls.t_class_vars };
 	t_cl := { !t_cl with c_vars =
-			  (v.desc.var_mutable, et.t_expr_type, v.desc.var_name)
+			  (v.desc.var_mutable, et, v.desc.var_name)
 			  :: !t_cl.c_vars }; 
 	update_class_env ()
   in
