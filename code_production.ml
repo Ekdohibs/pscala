@@ -67,7 +67,7 @@ let make_base_repr parent = {
 }
 let br = [
   "Any", make_base_repr "Any";
-  "AnyRef", make_base_repr "AnyRef"
+  "AnyRef", make_base_repr "Any"
 ]
 let base_reprs =
   List.fold_left (fun m (n, v) -> Smap.add n v m) Smap.empty br
