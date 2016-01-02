@@ -222,6 +222,23 @@ let rec compile_expr expr reprs num_args = match expr.t_expr with
 		    let repr = Smap.find class_name reprs in
 		    movq (access_arg (-1) num_args) (reg rsi) 
 			++ movq (access_field (i + repr.r_cp_offset)) (reg rax), nop)
+  | Taccess (Tfield (e, field_name, class_name)) -> 
+         let repr = Smap.find class_name reprs in
+		 let field = Smap.find field_name repr.r_vars in
+		 compile_expr e reprs num_args
+		 ++@ movq (ind ~ofs:(8 * (field + 1)) rax) (reg rax)
+  | Tassign (Tvar var, e) -> compile_expr e reprs num_args 
+         ++@ (match var with TLocal (_,i) -> movq (reg rax) (access_local i)
+		      | _ -> assert false)
+  | Tassign (Tfield (e1, field_name, class_name), e2) ->
+         let repr = Smap.find class_name reprs in
+		 let field = Smap.find field_name repr.r_vars in
+         compile_expr e1 reprs num_args
+		 ++@ pushq (reg rax)
+		 +++ compile_expr e2 reprs num_args
+		 ++@ popq rsi
+		 ++@ set_field field
+		 
   | _ -> (nop, nop)
 and compile_bloc bloc reprs num_args = match bloc with
   | [] -> nop, nop
