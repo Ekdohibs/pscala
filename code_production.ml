@@ -177,7 +177,14 @@ let rec compile_expr expr reprs num_args = match expr.t_expr with
 		 | _ -> assert false)) (reg rdi)
 	  ++@ xorq (reg rax) (reg rax)
 	  ++@ call "printf"
+  | Tbloc b -> (match b with [] -> xorq (reg rax) (reg rax), nop 
+         | _ -> compile_bloc b reprs num_args)
   | _ -> (nop, nop)
+and compile_bloc bloc reprs num_args = match bloc with
+  | [] -> nop, nop
+  | (TVvar v)::b -> compile_bloc b reprs num_args
+  | (TVexpr e)::b -> compile_expr e reprs num_args 
+      +++ compile_bloc b reprs num_args
 	   
 let compile_class c_name cls reprs =
   let repr = Smap.find c_name reprs in
