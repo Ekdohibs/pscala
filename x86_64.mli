@@ -339,8 +339,11 @@ val comment : string -> [> ] asm
 (** {2 Données } *)
 
 val string : string -> data
-  (** place une constante chaîne de caractères (terminées par 0) dans a
-      zone data *)
+  (** place une constante chaîne de caractères (terminées par 0) dans
+      la zone data *)
+val string_unescaped : string -> data
+  (** place une constante chaîne de caractères (terminées par 0) dans
+      la zone data, sans échapper les caratères spéciaux *)
 val dbyte : int list -> data
 val dword : int list -> data
 val dint : int list -> data
