@@ -42,7 +42,7 @@ type t_class_sig = {
 type t_variable =
   | TLocal of (p_ident * int)
   | TParam of (p_ident * int)
-  | TClassParam of (p_ident * int)					 
+  | TClassParam of (p_ident * int * p_ident)					 
 					 
 type t_env = {
   env_cnames : t_type_name Smap.t;

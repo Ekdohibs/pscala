@@ -566,9 +566,11 @@ and access_type env acc =
 		Tfield (et, id))
 	 with Not_found ->
 	   if e.desc = Ethis && List.mem_assoc id c.t_class_params then
+		 let c_name = match t.t_type_name with
+			 TGlobal s -> s | _ -> assert false in
 		 let (tt, index) = List.assoc id
 		  (List.mapi (fun i (a, b) -> (a, (b, i))) c.t_class_params) in
-		  (false, tt, Tvar (TClassParam (id, index)))
+		  (false, tt, Tvar (TClassParam (id, index, c_name)))
 	   else
 		 raise (Typing_error 
 		   ((fun ff -> Format.fprintf ff 
@@ -838,7 +840,7 @@ let type_class env c =
 	(fun i (par_name, par_type) ->
 	 class_env := { !class_env with
 	   env_variables = Smap.add par_name
-	       (false, par_type, TClassParam (par_name, i))
+	       (false, par_type, TClassParam (par_name, i, class_name))
 		   !class_env.env_variables }
 	) params;
 

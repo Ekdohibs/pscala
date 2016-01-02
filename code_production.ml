@@ -144,9 +144,12 @@ let access_arg k num_args =
 let access_local k =
   ind ~ofs:(-8 * (k + 1)) rbp
 	  
+let access_field k =
+  (ind ~ofs:(8 * (k + 1)) rsi)
+	
 let set_field k =
-  movq (reg rax) (ind ~ofs:(8 * (k + 1)) rsi)
-
+  movq (reg rax) (access_field k)
+	   
 let stack_reserve n =
   if n = 0 then nop else
 	addq (imm (-8 * n)) (reg rsp) 
