@@ -35,7 +35,7 @@ clean:
 	rm -f *.cm[io] *.o *.annot *~ pscala $(GENERATED)
 	rm -f menhir_parse.output menhir_parse.automaton menhir_parse.conflicts
 	rm -f .depend
-	rm *.log *.aux *.synctex.gz
+	rm -f *.log *.aux *.synctex.gz
 
 .depend depend:$(GENERATED)
 	rm -f .depend

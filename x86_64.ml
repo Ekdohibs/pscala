@@ -279,7 +279,7 @@ let dint  l = ins ".int %a" pr_ilist l
 let dword l = ins ".word %a" pr_ilist l
 let dquad l = ins ".quad %a" pr_ilist l
 let string s = ins ".string %S" s
-let string_unescaped s = ins ".string %s" s
+let string_unescaped s = ins ".string \"%s\"" s
 				   
 let address l = ins ".quad %a" pr_alist l
 let space n = ins ".space %d" n
