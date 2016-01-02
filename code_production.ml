@@ -161,8 +161,6 @@ let create c_name reprs =
 	call "malloc" ++
 	movq (ilab (descr_label c_name)) (ind rax)
 
-
-
 let rec compile_expr expr reprs num_args = match expr.t_expr with
   | Tint i -> movq (imms i) (reg rax), nop
   | Tstring s -> let lab = make_data_label "string" in
@@ -179,6 +177,41 @@ let rec compile_expr expr reprs num_args = match expr.t_expr with
 	  ++@ call "printf"
   | Tbloc b -> (match b with [] -> xorq (reg rax) (reg rax), nop 
          | _ -> compile_bloc b reprs num_args)
+  | Tthis -> movq (access_arg (-1) num_args) (reg rax), nop
+  | Treturn e -> compile_expr e reprs num_args ++@ leave ++@ ret
+  | Tunary (Uminus, e) -> compile_expr e reprs num_args ++@ negq (reg rax)
+  | Tunary (Unot, e) -> compile_expr e reprs num_args ++@ xorq (imm 1) (reg rax)
+  | Tbinary (Bplus | Bminus | Btimes as op, e1, e2) ->
+         compile_expr e2 reprs num_args ++@ pushq (reg rax)
+		 +++ compile_expr e1 reprs num_args 
+		 ++@ popq rsi
+		 ++@ (match op with Bplus -> addq | Bminus -> subq | _ -> imulq) 
+		    (reg rsi) (reg rax)
+  | Tbinary (Bequal | Bnotequal | Blt | Ble | Bgt | Bge as op, e1, e2) ->
+         compile_expr e1 reprs num_args ++@ pushq (reg rax)
+		 +++ compile_expr e2 reprs num_args
+		 ++@ popq rsi
+		 ++@ movq (reg rax) (reg rdi) ++@ xorq (reg rax) (reg rax)
+		 ++@ cmpq (reg rdi) (reg rsi)
+		 ++@ (match op with Bequal -> sete | Bnotequal -> setne | Blt -> setl
+		      | Ble -> setle | Bgt -> setg | _ -> setge) (reg al)
+  | Tif (e1, e2, e3) -> let lab_if = make_label "if" 
+         and lab_else = make_label "else" in
+		 compile_expr e1 reprs num_args ++@ testq (reg rax) (reg rax)
+		 ++@ jz lab_else
+		 +++ compile_expr e2 reprs num_args
+		 ++@ jmp lab_if
+		 ++@ label lab_else
+		 +++ compile_expr e3 reprs num_args
+		 ++@ label lab_if
+  | Twhile (e1, e2) -> let lab_loop = make_label "loop" 
+         and lab_after_loop = make_label "after_loop" in
+		 (label lab_loop, nop)
+		 +++ compile_expr e1 reprs num_args ++@ testq (reg rax) (reg rax)
+		 ++@ jz lab_after_loop
+		 +++ compile_expr e2 reprs num_args
+		 ++@ jmp lab_loop
+		 ++@ label lab_after_loop
   | _ -> (nop, nop)
 and compile_bloc bloc reprs num_args = match bloc with
   | [] -> nop, nop

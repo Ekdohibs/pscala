@@ -27,7 +27,8 @@ and p_method = { method_override : bool;
 				 method_body : p_expr desc
 			   }
 and unary_op = Uminus | Unot
-and binary_op = Beq | Bne | Bequal | Bnotequal | Blt | Ble | Bgt | Bge | Bplus | Bminus | Btimes | Bdiv | Bmod | Band | Bor
+and binary_op = Beq | Bne | Bequal | Bnotequal | Blt | Ble | Bgt | Bge 
+  | Bplus | Bminus | Btimes | Bdiv | Bmod | Band | Bor
 and p_expr =
   | Eint of string
   | Estring of string
