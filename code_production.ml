@@ -127,7 +127,7 @@ let rec expr_locals_size expr = match expr.t_expr with
 					   
 and access_locals_size = function
   | Tvar _ -> 0
-  | Tfield (e, _) -> expr_locals_size e
+  | Tfield (e, _, _) -> expr_locals_size e
 
 and bloc_locals_size = function
   | [] -> 0
@@ -190,14 +190,29 @@ let rec compile_expr expr reprs num_args = match expr.t_expr with
 		 ++@ popq rsi
 		 ++@ (match op with Bplus -> addq | Bminus -> subq | _ -> imulq) 
 		    (reg rsi) (reg rax)
-  | Tbinary (Bequal | Bnotequal | Blt | Ble | Bgt | Bge as op, e1, e2) ->
+  | Tbinary (Bdiv | Bmod as op, e1, e2) ->
+         compile_expr e2 reprs num_args ++@ pushq (reg rax)
+		 +++ compile_expr e1 reprs num_args
+		 ++@ popq rsi
+		 ++@ cqto 
+		 ++@ idivq (reg rsi)
+		 ++@ (if op = Bmod then movq (reg rdx) (reg rax) else nop)
+  | Tbinary (Bequal | Bnotequal | Blt | Ble | Bgt | Bge | Beq | Bne as op, 
+      e1, e2) ->
          compile_expr e1 reprs num_args ++@ pushq (reg rax)
 		 +++ compile_expr e2 reprs num_args
 		 ++@ popq rsi
 		 ++@ movq (reg rax) (reg rdi) ++@ xorq (reg rax) (reg rax)
 		 ++@ cmpq (reg rdi) (reg rsi)
-		 ++@ (match op with Bequal -> sete | Bnotequal -> setne | Blt -> setl
-		      | Ble -> setle | Bgt -> setg | _ -> setge) (reg al)
+		 ++@ (match op with Bequal | Beq -> sete | Bnotequal | Bne -> setne 
+		      | Blt -> setl | Ble -> setle | Bgt -> setg | _ -> setge) (reg al)
+  | Tbinary (Band | Bor as op, e1, e2) -> 
+         let lab = make_label "binop" in
+         compile_expr e1 reprs num_args
+		 ++@ testq (reg rax) (reg rax)
+		 ++@ (if op = Band then jz else jnz) lab
+		 +++ compile_expr e2 reprs num_args
+		 ++@ label lab
   | Tif (e1, e2, e3) -> let lab_if = make_label "if" 
          and lab_else = make_label "else" in
 		 compile_expr e1 reprs num_args ++@ testq (reg rax) (reg rax)
@@ -238,11 +253,37 @@ let rec compile_expr expr reprs num_args = match expr.t_expr with
 		 +++ compile_expr e2 reprs num_args
 		 ++@ popq rsi
 		 ++@ set_field field
-		 
-  | _ -> (nop, nop)
+  | Tnew (t, l) -> let class_name = 
+         (match t.t_type_name with TGlobal name -> name | _ -> assert false) in
+		 let repr = Smap.find class_name reprs in
+		 (create class_name reprs, nop)
+		 ++@ pushq (reg rax)
+		 +++ List.fold_left (+++) (nop, nop) 
+		     (List.mapi (fun i e -> compile_expr e reprs num_args 
+			  ++@ movq (ind rsp) (reg rsi)
+			  ++@ set_field (i + repr.r_cp_offset)) l)
+		 ++@ call (constr_label class_name)
+		 ++@ popq rax
+  | Tcall (class_name, method_name, args) -> 
+         let repr = Smap.find class_name reprs in
+		 let method_offset = fst (Smap.find method_name repr.r_methods) in
+		 let n = List.length args in
+		 List.fold_left (+++) (nop, nop)
+		   (List.map (fun e -> compile_expr e reprs num_args 
+		    ++@ pushq (reg rax)) args)
+		 ++@ movq (ind ~ofs:(8 * (n - 1)) rsp) (reg rax)
+		 ++@ movq (ind rax) (reg rax)
+		 ++@ movq (ind ~ofs:(8 * (method_offset + 1)) rax) (reg rax)
+		 ++@ call_star (reg rax)
+		 ++@ stack_free n
 and compile_bloc bloc reprs num_args = match bloc with
   | [] -> nop, nop
-  | (TVvar v)::b -> compile_bloc b reprs num_args
+  | (TVvar v)::b -> let e = v.t_var_expr 
+         and id = (match v.t_var_name with TLocal (_, i) -> i 
+		           | _ -> assert false) in
+		 compile_expr e reprs num_args
+		 ++@ movq (reg rax) (access_local id)
+         +++ compile_bloc b reprs num_args
   | (TVexpr e)::b -> compile_expr e reprs num_args 
       +++ compile_bloc b reprs num_args
 	   
