@@ -315,7 +315,14 @@ let recog_p_var_expr = function
 let take_vvar var = match var with
   | Vvar a -> a
   | _ -> failwith "erreur dans take_vvar"
-		  
+
+let rec class_basename env = function
+  | TGlobal s -> s
+  | c -> 
+	 let parent = (TNmap.find c env.env_classes).
+				  t_class_extends.t_type_name in
+	 class_basename env parent
+				  
 let rec expr_type env e =
   match e.desc with
   | Eint i -> { t_expr_type = type_s "Int";
@@ -381,21 +388,9 @@ let rec expr_type env e =
 		   "Argument type@, %a@ is not a subtype of expected type@, %a."
 		   print_type ea.t_expr_type print_type t2), loc))
 	   ) a_typed effective_types;
-	 let c_basename = ref t1.t_type_name in
-	 let parent c = (TNmap.find c env.env_classes).
-					t_class_extends.t_type_name in
-	 let is_child c =
-	   let c2 = TNmap.find (parent c) env.env_classes in
-	   Smap.mem name c2.t_class_methods
-	 in
-	 while is_child !c_basename do
-	   c_basename := parent !c_basename;
-	   Debug.debug "%s %a@." name print_type_name !c_basename
-	 done;
-	 let cb = match !c_basename with
-	   | TGlobal s -> s | _ -> assert false in
 	 { t_expr_type = subst m.t_method_type;
-	   t_expr = Tcall (cb, name, et1 :: (List.map fst a_typed))
+	   t_expr = Tcall (class_basename env t1.t_type_name,
+					   name, et1 :: (List.map fst a_typed))
 	 }
   | Enew (type_name, type_args, args) ->
 	 let created_type = { type_name = type_name;
@@ -546,12 +541,14 @@ and access_type env acc =
 	  with Not_found ->
 		   let _, this, _ = Smap.find "this" env.env_variables in
 		   let c = TNmap.find this.t_type_name env.env_classes in
+		   let class_name = match this.t_type_name with
+			   TGlobal s -> s | _ -> assert false in
 		   try
 			 let (mut, tt) = Smap.find id c.t_class_vars in
 			 (mut, tt, Tfield ({
 								t_expr_type = this;
 								t_expr = Tthis
-							  }, id))
+							  }, id, class_name))
 		   with Not_found ->
 			 raise (Typing_error 
 			  ((fun ff -> Format.fprintf ff "Unbound variable: %s" id),
@@ -562,8 +559,9 @@ and access_type env acc =
 	 let c = TNmap.find t.t_type_name env.env_classes in
 	 try
 	   let (mut, tt) = Smap.find id c.t_class_vars in
+	   
 	   (mut, class_subst t.t_arguments_type tt,
-		Tfield (et, id))
+		Tfield (et, id, class_basename env tt.t_type_name))
 	 with Not_found ->
 	   if e.desc = Ethis && List.mem_assoc id c.t_class_params then
 		 let c_name = match t.t_type_name with

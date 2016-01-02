@@ -84,7 +84,7 @@ and t_expr_desc =
 
 and t_access =
   | Tvar of t_variable
-  | Tfield of t_expr * p_ident
+  | Tfield of t_expr * p_ident * p_ident
 
 and t_var = {
   (* Needed ? *)
