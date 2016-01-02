@@ -162,7 +162,12 @@ let create c_name reprs =
 	call "malloc" ++
 	movq (ilab (descr_label c_name)) (ind rax)
 		 
-let compile_expr expr reprs num_args = (nop, nop)
+let compile_expr expr reprs num_args =
+  | Tint i -> movq (imms i) (reg rax), nop
+  | Tstring s -> let lab = make_data_label "string" in
+		movq (ilab lab) (reg rax), label lab ++ string s
+  | Tbool b -> movq (imm (if b then 1 else 0)) (reg rax), nop
+  | _ -> (nop, nop)
 	   
 let compile_class c_name cls reprs =
   let repr = Smap.find c_name reprs in
