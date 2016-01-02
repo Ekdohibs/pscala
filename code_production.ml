@@ -215,13 +215,13 @@ let rec compile_expr expr reprs num_args = match expr.t_expr with
 		 +++ compile_expr e2 reprs num_args
 		 ++@ jmp lab_loop
 		 ++@ label lab_after_loop
-  | Taccess (Tvar var) -> (match var.t_var_name with 
+  | Taccess (Tvar var) -> (match var with 
          TLocal (_, i) -> movq (access_local i) (reg rax), nop
 		 | TParam (_, i) -> movq (access_arg i num_args) (reg rax), nop
 		 | TClassParam (_, i, class_name) -> 
 		    let repr = Smap.find class_name reprs in
 		    movq (access_arg (-1) num_args) (reg rsi) 
-			++ movq (access_field (i + repr.r_cp_offset)) (reg rax), nop
+			++ movq (access_field (i + repr.r_cp_offset)) (reg rax), nop)
   | _ -> (nop, nop)
 and compile_bloc bloc reprs num_args = match bloc with
   | [] -> nop, nop
