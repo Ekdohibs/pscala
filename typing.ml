@@ -561,7 +561,7 @@ and access_type env acc =
 	   let (mut, tt) = Smap.find id c.t_class_vars in
 	   
 	   (mut, class_subst t.t_arguments_type tt,
-		Tfield (et, id, class_basename env tt.t_type_name))
+		Tfield (et, id, class_basename env t.t_type_name))
 	 with Not_found ->
 	   if e.desc = Ethis && List.mem_assoc id c.t_class_params then
 		 let c_name = match t.t_type_name with
