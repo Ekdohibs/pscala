@@ -72,7 +72,7 @@ rule token = parse
   | "]"							{ RIGHTSQBRACK }
   | "{"							{ LEFTBRACK }
   | "}"							{ RIGHTBRACK }
-  | "\"" car* as s "\"" 		{ STRING s }
+  | "\"" (car* as s) "\"" 		{ STRING s }
   | ":"							{ COLON }
   | ";"							{ SEMICOLON }
   | ","							{ COMMA }
