@@ -166,7 +166,7 @@ let create c_name reprs =
 let rec compile_expr expr reprs num_args = match expr.t_expr with
   | Tint i -> movq (imms i) (reg rax), nop
   | Tstring s -> let lab = make_data_label "string" in
-		movq (ilab lab) (reg rax), label lab ++ string s
+		movq (ilab lab) (reg rax), label lab ++ string_unescaped s
   | Tbool b -> movq (imm (if b then 1 else 0)) (reg rax), nop
   | Tunit -> xorq (reg rax) (reg rax), nop
   | Tnull -> xorq (reg rax) (reg rax), nop
