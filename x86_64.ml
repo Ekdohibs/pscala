@@ -87,6 +87,7 @@ type label = string
 type 'size operand = formatter -> unit -> unit
 
 let reg r = fun fmt () -> fprintf fmt "%s" r
+let imms s = fun fmt () -> fprintf fmt "$%s" s
 let imm i = fun fmt () -> fprintf fmt "$%i" i
 let ind ?(ofs=0) ?index ?(scale=1) r = fun fmt () -> match index with
   | None -> fprintf fmt "%d(%s)" ofs r
@@ -284,6 +285,7 @@ let space n = ins ".space %d" n
 
 let pushq a = ins "pushq %a" a ()
 let popq r = ins "popq %s" r
+let leave = S "\tleave\n"
 
 type program = {
   text : [ `text ] asm;

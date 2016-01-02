@@ -141,6 +141,8 @@ type 'size operand
 
 val imm: int -> [>] operand
   (** opérande immédiate $i *)
+val imms: string -> [>] operand
+  (** opérande immédiate $i, avec i comme une chaîne *)
 val reg: 'size register -> 'size operand
   (** registre *)
 val ind: ?ofs:int -> ?index:'size1 register -> ?scale:int ->
@@ -321,6 +323,8 @@ val pushq : [`Q] operand -> text
 val popq : [`Q] register -> text
   (** [popq r] place le mot en sommet de pile dans [r] et dépile *)
 
+val leave : text
+							  
 (** {2 Divers } *)
 
 val label : label -> [> ] asm

@@ -4,7 +4,6 @@ open X86_64
 
 let (+++) (x1, y1) (x2, y2) = (x1 ++ x2, y1 ++ y2)
 let (++@) (x1, y1) x2 = (x1 ++ x2, y1)
-let leave : text = inline "\tleave\n"
 let enter = pushq (reg rbp) ++ movq (reg rsp) (reg rbp)
 						  
 let make_label = begin

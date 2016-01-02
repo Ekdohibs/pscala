@@ -70,8 +70,6 @@ and t_expr_desc =
   | Tnull
   | Taccess of t_access
   | Tassign of t_access * t_expr
-  (* TODO: on détermine la méthode appelée *) 
-  (* | Tcall of t_expr * p_ident * t_type list * t_expr list *)
   (* Le nom de la classe de base + de la méthode +
        les arguments (y compris l'objet) *)
   | Tcall of p_ident * p_ident * t_expr list
