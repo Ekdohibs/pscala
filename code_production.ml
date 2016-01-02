@@ -160,12 +160,23 @@ let create c_name reprs =
   movq (imm (8 * (repr.r_num_fields + 1))) (reg rdi) ++
 	call "malloc" ++
 	movq (ilab (descr_label c_name)) (ind rax)
-		 
-let compile_expr expr reprs num_args =
+
+
+
+let rec compile_expr expr reprs num_args = match expr.t_expr with
   | Tint i -> movq (imms i) (reg rax), nop
   | Tstring s -> let lab = make_data_label "string" in
 		movq (ilab lab) (reg rax), label lab ++ string s
   | Tbool b -> movq (imm (if b then 1 else 0)) (reg rax), nop
+  | Tunit -> xorq (reg rax) (reg rax), nop
+  | Tnull -> xorq (reg rax) (reg rax), nop
+  | Tprint e -> compile_expr e reprs num_args ++@ movq (reg rax) (reg rsi)
+      ++@ movq (ilab (match e.t_expr_type.t_type_name with 
+	     TGlobal "Int" -> ".Sprint_int"
+		 | TGlobal "String" -> ".Sprint_string"
+		 | _ -> assert false)) (reg rdi)
+	  ++@ xorq (reg rax) (reg rax)
+	  ++@ call "printf"
   | _ -> (nop, nop)
 	   
 let compile_class c_name cls reprs =
@@ -232,5 +243,6 @@ let produce_code prog =
 		ret ++
 		c_text
     ;
-    data = r_data ++ c_data
+    data = r_data ++ c_data ++ label ".Sprint_int" ++ string "%d" 
+	++ label ".Sprint_string" ++ string "%s"
   }
