@@ -185,15 +185,17 @@ let rec compile_expr expr reprs num_args = match expr.t_expr with
   | Tunary (Uminus, e) -> compile_expr e reprs num_args ++@ negq (reg rax)
   | Tunary (Unot, e) -> compile_expr e reprs num_args ++@ xorq (imm 1) (reg rax)
   | Tbinary (Bplus | Bminus | Btimes as op, e1, e2) ->
-         compile_expr e2 reprs num_args ++@ pushq (reg rax)
-		 +++ compile_expr e1 reprs num_args 
-		 ++@ popq rsi
+         compile_expr e1 reprs num_args ++@ pushq (reg rax)
+		 +++ compile_expr e2 reprs num_args 
+		 ++@ movq (reg rax) (reg rsi)
+		 ++@ popq rax
 		 ++@ (match op with Bplus -> addq | Bminus -> subq | _ -> imulq) 
 		    (reg rsi) (reg rax)
   | Tbinary (Bdiv | Bmod as op, e1, e2) ->
-         compile_expr e2 reprs num_args ++@ pushq (reg rax)
-		 +++ compile_expr e1 reprs num_args
-		 ++@ popq rsi
+         compile_expr e1 reprs num_args ++@ pushq (reg rax)
+		 +++ compile_expr e2 reprs num_args
+		 ++@ movq (reg rax) (reg rsi)
+		 ++@ popq rax
 		 ++@ cqto 
 		 ++@ idivq (reg rsi)
 		 ++@ (if op = Bmod then movq (reg rdx) (reg rax) else nop)
