@@ -1,0 +1,107 @@
+\documentclass[a4paper,10pt]{article}
+
+\usepackage[francais]{babel} 
+%\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+
+
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+%\usepackage{algorithmic}
+%\usepackage{algorithm}
+\usepackage{listings}
+\usepackage{url}
+\usepackage{graphicx}
+
+\usepackage{listings}
+\usepackage{xcolor}
+%\lstset{upquote=false,
+%        columns=flexible,
+%        keepspaces=true,
+%        breaklines,
+%        breakindent=0pt}
+%\lstset{basicstyle=\ttfamily\footnotesize,
+%        commentstyle=\itshape\color{green},
+%        keywordstyle=\bfseries\color{red},
+%				stringstyle=\it\color{blue}}
+%\lstset{language={Python}}
+%\lstset{xleftmargin=2em,xrightmargin=2em,aboveskip=\topsep,belowskip=\topsep,
+%        frame=single,rulecolor=\color{blue},backgroundcolor=\color{blue!5},frame=tb}
+
+\textwidth 173mm \textheight 235mm \topmargin -50pt \oddsidemargin
+-0.45cm \evensidemargin -0.45cm
+
+%\newcommand{\code}[1]{#1}
+\newcommand{\code}[1]{{\fontfamily{pcr}\selectfont #1}}
+
+%\renewcommand{\thesection}{}
+%\renewcommand{\thesubsection}{}
+
+\title{Rapport - Compilation : Petit Scala, deuxième partie}
+\author{Nathanaël Courant, Noémie Cartier}
+
+
+\begin{document}
+
+\maketitle
+
+\section*{Choix techniques}
+
+\subsection*{Production de code}
+
+Nous avons choisi de compiler les expressions en plaçant leur résultat
+dans \code{\%{}rax}~: ainsi, \code{compile\_{}expr} prend
+en arguments une expression, la représentation des classes en mémoire
+(voir plus loin), et le nombre d'arguments de la fonction actuelle, et
+compile cette expression en écrivant son résultat dans
+\code{\%{}rax}. \\ \par
+Les expressions égales à \code{()} ne remettent pas \code{\%{}rax} à
+$0$, la valeur de \code{()} n'étant jamais utilisée. En effet, les
+règles de typage interdisent toute utilisation de la valeur d'un objet
+de type \code{Unit}, celui-ci ne pouvant ni être converti en une
+valeur d'un autre type, ni testé pour son égalité (avec un autre objet
+de type \code{Unit}). \\ \par
+Le valeur de retour de \code{compile\_{}expr} est une paire de type
+\code{X86\_{}64.text * X86\_{}64.data}, représentant l'assembleur à
+écrire dans le segment de texte et de données, respectivement. \\ \par
+L'appel d'une fonction se fait en passant tous les paramètres de
+celle-ci sur la pile, en poussant le premier paramètre (l'objet
+lui-même) en premier. \\ \par
+L'appel du constructeur d'une classe se déroule en commençant par
+créer l'objet (i.e. l'allouer et remplir l'en-tête avec l'adresse du
+descripteur de classe), puis écrire les paramètres du constructeur à
+leur place respective dans l'objet, là où ils sont stockés plus
+tard. On termine par appeler le constructeur comme une autre fonction.
+Lorsque la classe a une classe parente, le constructeur calcule donc
+les paramètres qui sont passés au parent et les stocke dans l'objet,
+puis appelle le constructeur de la classe parente, et enfin calcule
+les nouveaux champs qui sont définis dans cette classe. \\ \par
+Ainsi, si classe B étend la classe A, la représentation mémoire de B
+est la suivante~: \\ \par
+\begin{center}
+\begin{tabular}{|c|}
+\hline
+\code{descripteur de B} \\ \hline
+\code{paramètres du constructeur de A} \\ \hline
+\code{champs définis dans A} \\ \hline
+\code{paramètres du constructeur de B} \\ \hline
+\code{champs définis dans B} \\ \hline
+\end{tabular}
+\end{center}
+
+Notre code initial évaluait les expressions binaires arithmétiques de
+droite à gauche, pour simplifier le code produit. Cependant, nous
+n'avons pas pu trouver d'informations sur l'ordre d'évaluation des
+paramètres des opérateurs binaires en Scala, et les tests effectués
+avec \code{scalac} semblaient indiquer que celui-ci était de gauche à
+droite~; nous avons donc changé cela dans notre compilateur. \\ \par
+Finalement, le calcul de la représentation mémoire des objets et des
+descripteurs de classes se fait au tout début, dans l'ordre de
+définition des classes. \\ \par
+La fonction gérant la production de code n'a pas besoin de faire de
+l'analyse de portée ou de détermination des méthodes appelées, ceci
+étant déjà fait au cours du typage.
+
+\end{document}
