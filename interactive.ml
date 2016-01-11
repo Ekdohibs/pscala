@@ -8,5 +8,5 @@ let rtl = Rtl.program is;;
 Rtl.print_program Format.std_formatter rtl;;
 let ertl = Ertl.program rtl;;
 (* Liveliness.print_program Format.std_formatter ertl;; *)
-let lsl_ = Lsl.program ertl;;
-Lsl.print_program Format.std_formatter lsl_;;
+let ltl= Ltl.program ertl;;
+Ltl.print_program Format.std_formatter ltl;;

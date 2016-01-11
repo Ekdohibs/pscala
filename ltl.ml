@@ -1,4 +1,4 @@
-open Lsl_ast
+open Ltl_ast
 open Common
 	   
 let graph = ref LMap.empty
