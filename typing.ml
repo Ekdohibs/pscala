@@ -1,5 +1,7 @@
 open Ast
 open Type_ast
+open Common
+	   
 exception Typing_error of
    (Format.formatter -> unit) * (Lexing.position * Lexing.position)
 let type_s s = { t_type_name = TGlobal s; t_arguments_type = [] }
@@ -13,18 +15,6 @@ let unique_list l =
 	| h::t when h = List.hd(t) -> false
 	| h::t 	-> aux t
   in aux (List.sort compare l_aux)
-
-module List = struct
-  include List
-  let iter3 f l m n =
-	List.iter2 (fun a (b,c) -> f a b c) l (List.combine m n)
-  let map3 f l m n =
-	List.map2 (fun a (b,c) -> f a b c) l (List.combine m n)
-  let iteri2 f l m =
-	List.iteri (fun i (a,b) -> f i a b) (List.combine l m)
-  let mapi2 f l m =
-	List.mapi (fun i (a,b) -> f i a b) (List.combine l m)
-end
 			  
 let check_unique l err_msg =
   ignore (List.fold_left (fun seen (name, loc) ->
