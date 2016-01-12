@@ -25,6 +25,7 @@ type register = Register.t
 type instr =
   | Eint of int64 * register * label
   | Estring of string * register * label
+  | Eunit of register * label
   | Egetfield of register * int * register * label
   | Esetfield of register * int * register * label
   | Ecall of register * string * register list * label
@@ -55,7 +56,6 @@ type fundef = {
 
 type program = {
   prog_functions : fundef list;
-  prog_main : string;
-  prog_class_descrs : (string * string list) list;
+  prog_class_descrs : (string * string * string list) list;
 }
 

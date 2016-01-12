@@ -89,6 +89,7 @@ type 'size operand = formatter -> unit -> unit
 let reg r = fun fmt () -> fprintf fmt "%s" r
 let imms s = fun fmt () -> fprintf fmt "$%s" s
 let imm i = fun fmt () -> fprintf fmt "$%i" i
+let imm32 i = fun fmt () -> fprintf fmt "$%li" i
 let ind ?(ofs=0) ?index ?(scale=1) r = fun fmt () -> match index with
   | None -> fprintf fmt "%d(%s)" ofs r
   | Some r1 -> fprintf fmt "%d(%s,%s,%d)" ofs r r1 scale

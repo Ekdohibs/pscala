@@ -17,6 +17,7 @@ type instr =
   | Esetheader of string * register * label
   | Eunary of xunary * color * label
   | Ebinary of xbinary * color * color * label
+  | Ecqto of label
   | Egoto of label
   | Eubranch of ubranch * color * label * label
   | Ebbranch of bbranch * color * color * label * label
@@ -35,7 +36,6 @@ type fundef = {
 				
 type program = {
   prog_functions : fundef list;
-  prog_main : string;
-  prog_class_descrs : (string * string list) list;
+  prog_class_descrs : (string * string * string list) list;
 }
 

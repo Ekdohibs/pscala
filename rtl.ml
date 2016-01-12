@@ -69,13 +69,14 @@ let rec condition e truel falsel ex locals = match e with
 and expr destr e ex locals destl = match e with
   | Is_ast.Eint n -> generate (Eint (n, destr, destl))
   | Is_ast.Estring s -> generate (Estring (s, destr, destl))
-  | Is_ast.Eunit -> destl
+  | Is_ast.Eunit -> generate (Eunit (destr, destl))
   | Is_ast.Egetlocal i ->
 	 move (get_local_register i locals) destr destl
   | Is_ast.Esetlocal (i, e) ->
 	 let r = Register.fresh () in
 	 expr r e ex locals (
-	 move r (get_local_register i locals) destl)
+	 move r (get_local_register i locals) (generate (
+	 Eunit (destr, destl))))
   | Is_ast.Egetfield (e, n) ->
 	 let r = Register.fresh () in
 	 expr r e ex locals (
@@ -85,7 +86,8 @@ and expr destr e ex locals destl = match e with
 	 let r2 = Register.fresh () in
 	 expr r1 e1 ex locals (
 	 expr r2 e2 ex locals (
-	 generate (Esetfield (r1, n, r2, destl))))
+	 generate (Esetfield (r1, n, r2,
+	 generate (Eunit (destr, destl))))))
   | Is_ast.Ecall (f, l) ->
 	 let regs = List.map (fun _ -> Register.fresh ()) l in
 	 List.fold_right (fun (e, r) l -> expr r e ex locals l)
@@ -102,10 +104,12 @@ and expr destr e ex locals destl = match e with
 	 expr retr e ex locals retl
   | Is_ast.Eprintint e ->
 	 let r = Register.fresh () in
-	 expr r e ex locals (generate (Eprintint (r, destl)))
+	 expr r e ex locals (generate (Eprintint (r,
+	 generate (Eunit (destr, destl)))))
   | Is_ast.Eprintstring e ->
 	 let r = Register.fresh () in
-	 expr r e ex locals (generate (Eprintstring (r, destl)))
+	 expr r e ex locals (generate (Eprintstring (r,
+	 generate (Eunit (destr, destl)))))
   | Is_ast.Ebloc b ->
 	 snd (List.fold_right (fun e (r, l) ->
 						   Register.fresh (), expr r e ex locals l)
@@ -116,7 +120,8 @@ and expr destr e ex locals destl = match e with
 			   (expr destr e3 ex locals destl)
 			   ex locals
   | Is_ast.Ewhile (e1, e2) ->
-	 loop (fun l -> condition e1 (expr destr e2 ex locals l) destl
+	 loop (fun l -> condition e1 (expr destr e2 ex locals l)
+							  (generate (Eunit (destr, destl)))
 							  ex locals)
   | Is_ast.Eand (e1, e2) ->
 	 condition e1
@@ -189,7 +194,6 @@ let func f =
 
 let program prog = {
   prog_functions = List.map func prog.Is_ast.prog_functions;
-  prog_main = prog.Is_ast.prog_main;
   prog_class_descrs = prog.Is_ast.prog_class_descrs
 }
 
@@ -226,7 +230,7 @@ let print_bbranch ff b =
   | Bjle -> "le" | Bjgt -> "gt" | Bjge -> "ge")
 
 let next_labels = function
-  | Eint (_, _, l) | Estring (_, _, l)
+  | Eint (_, _, l) | Estring (_, _, l) | Eunit (_, l)
   | Egetfield (_, _, _, l) | Esetfield (_, _, _, l)
   | Ecall (_, _, _, l) | Ecallmethod (_, _, _, l)
   | Eallocbloc (_, _, _, l) | Eunary (_, _, l)
@@ -238,49 +242,51 @@ let next_labels = function
 let print_instr ff i =
   (match i with
    | Eint (n, r, l) ->
-	 Format.fprintf ff "%a <- %Ld" Register.print r n
-  | Estring (s, r, l) ->
-	 Format.fprintf ff "%a <- \"%s\"" Register.print r s
-  | Egetfield (r1, n, r2, l) ->
-	 Format.fprintf ff "%a <- %a[%d]"
+	  Format.fprintf ff "%a <- %Ld" Register.print r n
+   | Estring (s, r, l) ->
+	  Format.fprintf ff "%a <- \"%s\"" Register.print r s
+   | Eunit (r, l) ->
+	  Format.fprintf ff "unit %a" Register.print r
+   | Egetfield (r1, n, r2, l) ->
+	  Format.fprintf ff "%a <- %a[%d]"
 					Register.print r2 Register.print r1 n
-  | Esetfield (r1, n, r2, l) ->
-	 Format.fprintf ff "%a[%d] <- %a"
-					Register.print r1 n Register.print r2
-  | Ecall (r, f, args, l) ->
-	 Format.fprintf ff "%a <- %s(" Register.print r f;
-	 print_list ff Register.print ", " args;
-	 Format.fprintf ff ")"
-  | Ecallmethod (r, offset, args, l) ->
-	 Format.fprintf ff "%a <- %d(" Register.print r offset;
-	 print_list ff Register.print ", "args;
-	 Format.fprintf ff ")"
-  | Eallocbloc(s, n, r, l) ->
-	 Format.fprintf ff "%a <- make_bloc(%s, %d)"
-					Register.print r s n
-  | Eunary (op, r, l) ->
-	 Format.fprintf ff "%a %a" print_xunary op Register.print r
-  | Ebinary (op, r1, r2, l) ->
-	 Format.fprintf ff "%a %a %a" print_xbinary op
-					Register.print r1 Register.print r2
-  | Eprintint (r, l) ->
-	 Format.fprintf ff "print_int %a" Register.print r
-  | Eprintstring (r, l) ->
-	 Format.fprintf ff "print_string %a" Register.print r
-  | Egoto l -> ()
-  | Eubranch (b, r, l1, l2) ->
-	 Format.fprintf ff "j%a" print_ubranch
-				   (b, (fun ff -> Register.print ff r))
-  | Ebbranch (b, r1, r2, l1, l2) ->
-	 Format.fprintf ff "j%a %a %a" print_bbranch b
-					Register.print r1 Register.print r2
-  | Euset (b, r1, r2, l) ->
-	 Format.fprintf ff "set%a %a" print_ubranch
-					(b, (fun ff -> Register.print ff r1))
-					Register.print r2
-  | Ebset (b, r1, r2, r3, l) ->
-	 Format.fprintf ff "set%a %a %a %a" print_bbranch b
-					Register.print r1 Register.print r2 Register.print r3
+   | Esetfield (r1, n, r2, l) ->
+	  Format.fprintf ff "%a[%d] <- %a"
+					 Register.print r1 n Register.print r2
+   | Ecall (r, f, args, l) ->
+	  Format.fprintf ff "%a <- %s(" Register.print r f;
+	  print_list ff Register.print ", " args;
+	  Format.fprintf ff ")"
+   | Ecallmethod (r, offset, args, l) ->
+	  Format.fprintf ff "%a <- %d(" Register.print r offset;
+	  print_list ff Register.print ", "args;
+	  Format.fprintf ff ")"
+   | Eallocbloc(s, n, r, l) ->
+	  Format.fprintf ff "%a <- make_bloc(%s, %d)"
+					 Register.print r s n
+   | Eunary (op, r, l) ->
+	  Format.fprintf ff "%a %a" print_xunary op Register.print r
+   | Ebinary (op, r1, r2, l) ->
+	  Format.fprintf ff "%a %a %a" print_xbinary op
+					 Register.print r1 Register.print r2
+   | Eprintint (r, l) ->
+	  Format.fprintf ff "print_int %a" Register.print r
+   | Eprintstring (r, l) ->
+	  Format.fprintf ff "print_string %a" Register.print r
+   | Egoto l -> ()
+   | Eubranch (b, r, l1, l2) ->
+	  Format.fprintf ff "j%a" print_ubranch
+					 (b, (fun ff -> Register.print ff r))
+   | Ebbranch (b, r1, r2, l1, l2) ->
+	  Format.fprintf ff "j%a %a %a" print_bbranch b
+					 Register.print r1 Register.print r2
+   | Euset (b, r1, r2, l) ->
+	  Format.fprintf ff "set%a %a" print_ubranch
+					 (b, (fun ff -> Register.print ff r1))
+					 Register.print r2
+   | Ebset (b, r1, r2, r3, l) ->
+	  Format.fprintf ff "set%a %a %a %a" print_bbranch b
+					 Register.print r1 Register.print r2 Register.print r3
   );
   Format.pp_print_tab ff ();
   Format.fprintf ff "\t--> ";
@@ -308,11 +314,11 @@ let print_func ff f =
   Format.fprintf ff "@]@."
 
 let print_program ff p =
-  Format.fprintf ff "Main function: %s@\n" p.prog_main;
   print_list ff print_func "@\n" p.prog_functions;
   Format.fprintf ff "Class descriptors:@\n";
-  print_list ff (fun ff (class_name, data) ->
-				 Format.fprintf ff "%s@[<v 2>@\n" class_name;
+  print_list ff (fun ff (class_name, parent_name, data) ->
+				 Format.fprintf ff "%s (inherits %s)@[<v 2>@\n"
+								class_name parent_name;
 				 print_list ff (fun ff -> Format.fprintf ff "%s") "@\n" data;
 				 Format.fprintf ff "@]")
 			 "@\n@\n" p.prog_class_descrs;

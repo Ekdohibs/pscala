@@ -1,4 +1,4 @@
-CMO=common.cmo debug.cmo menhir_parse.cmo parser.cmo lexer.cmo type_ast.cmo typing.cmo x86_64.cmo register.cmo label.cmo is_ast.cmo is.cmo rtl_ast.cmo rtl.cmo ertl_ast.cmo ertl.cmo liveliness.cmo interference.cmo coloring.cmo ltl_ast.cmo ltl.cmo code_production.cmo main.cmo
+CMO=common.cmo debug.cmo menhir_parse.cmo parser.cmo lexer.cmo type_ast.cmo typing.cmo x86_64.cmo register.cmo label.cmo is_ast.cmo is.cmo rtl_ast.cmo rtl.cmo ertl_ast.cmo ertl.cmo liveliness.cmo interference.cmo coloring.cmo ltl_ast.cmo ltl.cmo lin.cmo code_production.cmo main.cmo
 GENERATED = lexer.ml menhir_parse.ml menhir_parse.mli
 FLAGS=-annot -g
 MENHIR_FLAGS=-v --infer

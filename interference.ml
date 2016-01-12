@@ -21,11 +21,11 @@ let make infos =
   in
   let add_interf v w = if v <> w then (add_interf1 v w; add_interf1 w v) in
   let add_pref v w = if v <> w then (add_pref1 v w; add_pref1 w v) in
-  LMap.iter (fun _ (instr, def, _, live_out) ->
+  LMap.iter (fun _ (instr, def, live_in, live_out) ->
 			 match instr with
 			 | Ebinary (Xmov, r1, r2, _) ->
-				Rset.iter (fun r -> if r <> r2 then add_interf r r1) live_out;
-				add_pref r1 r2
+				Rset.iter (fun r -> if r <> r1 then add_interf r r2) live_out;
+				add_pref r1 r2				
 			 | _ ->
 				Rset.iter (fun r1 ->
                   Rset.iter (add_interf r1) live_out) def

@@ -48,7 +48,6 @@ type fundef = {
 
 type program = {
   prog_functions : fundef list;
-  prog_main : string;
-  prog_class_descrs : (string * string list) list;
+  prog_class_descrs : (string * string * string list) list;
 }
 				  

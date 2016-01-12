@@ -58,6 +58,7 @@ let param_registers params =
 let instr = function
   | Rtl_ast.Eint (n, r, l) -> Eint (n, r, l)
   | Rtl_ast.Estring (s, r, l) -> Estring (s, r, l)
+  | Rtl_ast.Eunit (r, l) -> Eunit (r, l)
   | Rtl_ast.Egetfield (r1, f, r2, l) -> Egetfield (r1, f, r2, l)
   | Rtl_ast.Esetfield (r1, f, r2, l) -> Esetfield (r1, f, r2, l)
   | Rtl_ast.Ecall (r, f, params, l) ->
@@ -97,24 +98,28 @@ let instr = function
 	 Ebinary (Xmul, r1, r, l)))
   | Rtl_ast.Eunary (Rtl_ast.Xdivi n, r, l) when is32op n ->
 	 Ebinary (Xmov, r, Register.rax, generate (
+	 Ecqto (generate (
 	 Eunary (Xdivi (Int64.to_int32 n), Register.rax,
-	 move Register.rax r l)))
+	 move Register.rax r l)))))
   | Rtl_ast.Eunary (Rtl_ast.Xdivi n, r, l) ->
 	 let r1 = Register.fresh () in
 	 Eint (n, r1,
 	 move r Register.rax (generate (
+	 Ecqto (generate (
 	 Ebinary (Xdiv, r1, Register.rax,
-	 move Register.rax r l))))
+	 move Register.rax r l))))))
   | Rtl_ast.Eunary (Rtl_ast.Xmodi n, r, l) when is32op n ->
 	 Ebinary (Xmov, r, Register.rax, generate (
+	 Ecqto (generate (
 	 Eunary (Xdivi (Int64.to_int32 n), Register.rax,
-	 move Register.rdx r l)))
+	 move Register.rdx r l)))))
   | Rtl_ast.Eunary (Rtl_ast.Xmodi n, r, l) ->
 	 let r1 = Register.fresh () in
 	 Eint (n, r1,
 	 move r Register.rax (generate (
+	 Ecqto (generate (
 	 Ebinary (Xdiv, r1, Register.rax,
-	 move Register.rdx r l))))
+	 move Register.rdx r l))))))
   | Rtl_ast.Eunary (Rtl_ast.Xsli n, r, l) -> Eunary (Xsli n, r, l)
   | Rtl_ast.Eunary (Rtl_ast.Xasri n, r, l) -> Eunary (Xasri n, r, l)
   | Rtl_ast.Eunary (Rtl_ast.Xlsri n, r, l) -> Eunary (Xlsri n, r, l)
@@ -126,12 +131,14 @@ let instr = function
 	 Ebinary (Xmul, r1, r2, l)
   | Rtl_ast.Ebinary (Rtl_ast.Xdiv, r1, r2, l) ->
 	 Ebinary (Xmov, r2, Register.rax, (generate (
+	 Ecqto (generate (
 	 Ebinary (Xdiv, r1, Register.rax,
-	 move Register.rax r2 l))))
+	 move Register.rax r2 l))))))
   | Rtl_ast.Ebinary (Rtl_ast.Xmod, r1, r2, l) ->
 	 Ebinary (Xmov, r2, Register.rax, (generate (
+	 Ecqto (generate (
 	 Ebinary (Xdiv, r1, Register.rax,
-	 move Register.rdx r2 l))))
+	 move Register.rdx r2 l))))))
   | Rtl_ast.Ebinary (Rtl_ast.Xsl, r1, r2, l) ->
 	 Ebinary (Xmov, r1, Register.rcx, (generate (
 	 Ebinary (Xsl, Register.rcx, r2, l))))
@@ -144,13 +151,13 @@ let instr = function
   | Rtl_ast.Ebinary (Rtl_ast.Xmov, r1, r2, l) ->
 	 Ebinary (Xmov, r1, r2, l)
   | Rtl_ast.Eprintint (r, l) ->
-	 Ebinary (Xmov, r, Register.rdi, (generate (
-	 Estring ("%d", Register.rsi, generate (
+	 Ebinary (Xmov, r, Register.rsi, (generate (
+	 Estring ("%d", Register.rdi, generate (
 	 Eint (0L, Register.rax, generate (
 	 Ecall ("printf", 2, l))))))))
   | Rtl_ast.Eprintstring (r, l) ->
-	 Ebinary (Xmov, r, Register.rdi, (generate (
-	 Estring ("%s", Register.rsi, generate (
+	 Ebinary (Xmov, r, Register.rsi, (generate (
+	 Estring ("%s", Register.rdi, generate (
 	 Eint (0L, Register.rax, generate (
 	 Ecall ("printf", 2, l))))))))
   | Rtl_ast.Egoto l -> Egoto l
@@ -206,16 +213,15 @@ let func f =
 
 let program p =
   { prog_functions = List.map func p.Rtl_ast.prog_functions;
-	prog_main = p.Rtl_ast.prog_main;
 	prog_class_descrs = p.Rtl_ast.prog_class_descrs
   }
 
 let next_labels = function
-  | Eint (_, _, l) | Estring (_, _, l)
+  | Eint (_, _, l) | Estring (_, _, l) | Eunit (_, l)
   | Egetfield (_, _, _, l) | Esetfield (_, _, _, l)
   | Ecall (_, _, l) | Ecallmethod (_, _, l)
   | Esetheader (_, _, l) | Eunary (_, _, l)
-  | Ebinary (_, _, _, l) | Egoto l
+  | Ebinary (_, _, _, l) | Ecqto l | Egoto l
   | Euset (_, _, _, l) | Ebset (_, _, _, _, l)
   | Ealloc_frame l | Edelete_frame l
   | Eget_param (_, _, l) | Epush_param (_, l)
@@ -229,49 +235,52 @@ let print_instr ff i =
 	  Format.fprintf ff "%a <- %Ld" Register.print r n
    | Estring (s, r, l) ->
 	  Format.fprintf ff "%a <- \"%s\"" Register.print r s
+   | Eunit (r, l) ->
+	  Format.fprintf ff "unit %a" Register.print r
    | Egetfield (r1, n, r2, l) ->
 	  Format.fprintf ff "%a <- %a[%d]"
 					 Register.print r2 Register.print r1 n
    | Esetfield (r1, n, r2, l) ->
 	  Format.fprintf ff "%a[%d] <- %a"
 					 Register.print r1 n Register.print r2
-  | Ecall (f, num_args, l) ->
-	 Format.fprintf ff "call %s (%d args)" f num_args
-  | Ecallmethod (offset, num_args, l) ->
-	 Format.fprintf ff "callm %d (%d args)" offset num_args
-  | Esetheader(s, r, l) ->
-	 Format.fprintf ff "set_header %a %s" Register.print r s
-  | Eunary (op, r, l) ->
-	 Format.fprintf ff "%a %a" print_xunary op Register.print r
-  | Ebinary (op, r1, r2, l) ->
-	 Format.fprintf ff "%a %a %a" print_xbinary op
-					Register.print r1 Register.print r2
-  | Egoto l -> ()
-  | Eubranch (b, r, l1, l2) ->
-	 Format.fprintf ff "j%a" print_ubranch
-				   (b, (fun ff -> Register.print ff r))
-  | Ebbranch (b, r1, r2, l1, l2) ->
-	 Format.fprintf ff "j%a %a %a" print_bbranch b
-					Register.print r1 Register.print r2
-  | Euset (b, r1, r2, l) ->
-	 Format.fprintf ff "set%a %a" print_ubranch
-					(b, (fun ff -> Register.print ff r1))
-					Register.print r2
-  | Ebset (b, r1, r2, r3, l) ->
-	 Format.fprintf ff "set%a %a %a %a" print_bbranch b
-					Register.print r1 Register.print r2 Register.print r3
-  | Ealloc_frame l ->
-	 Format.fprintf ff "alloc_frame"
-  | Edelete_frame l ->
-	 Format.fprintf ff "delete_frame"
-  | Eget_param (n, r, l) ->
-	 Format.fprintf ff "%a <- stack_param %d" Register.print r n
-  | Epush_param (r, l) ->
-	 Format.fprintf ff "push %a" Register.print r
-  | Ereturn ->
-	 Format.fprintf ff "ret"
-  | Estack_free (n, l) ->
-	 Format.fprintf ff "stack_free %d" n
+   | Ecall (f, num_args, l) ->
+	  Format.fprintf ff "call %s (%d args)" f num_args
+   | Ecallmethod (offset, num_args, l) ->
+	  Format.fprintf ff "callm %d (%d args)" offset num_args
+   | Esetheader(s, r, l) ->
+	  Format.fprintf ff "set_header %a %s" Register.print r s
+   | Eunary (op, r, l) ->
+	  Format.fprintf ff "%a %a" print_xunary op Register.print r
+   | Ebinary (op, r1, r2, l) ->
+	  Format.fprintf ff "%a %a %a" print_xbinary op
+					 Register.print r1 Register.print r2
+   | Ecqto l -> Format.fprintf ff "cqto"
+   | Egoto l -> ()
+   | Eubranch (b, r, l1, l2) ->
+	  Format.fprintf ff "j%a" print_ubranch
+					 (b, (fun ff -> Register.print ff r))
+   | Ebbranch (b, r1, r2, l1, l2) ->
+	  Format.fprintf ff "j%a %a %a" print_bbranch b
+					 Register.print r1 Register.print r2
+   | Euset (b, r1, r2, l) ->
+	  Format.fprintf ff "set%a %a" print_ubranch
+					 (b, (fun ff -> Register.print ff r1))
+					 Register.print r2
+   | Ebset (b, r1, r2, r3, l) ->
+	  Format.fprintf ff "set%a %a %a %a" print_bbranch b
+					 Register.print r1 Register.print r2 Register.print r3
+   | Ealloc_frame l ->
+	  Format.fprintf ff "alloc_frame"
+   | Edelete_frame l ->
+	  Format.fprintf ff "delete_frame"
+   | Eget_param (n, r, l) ->
+	  Format.fprintf ff "%a <- stack_param %d" Register.print r n
+   | Epush_param (r, l) ->
+	  Format.fprintf ff "push %a" Register.print r
+   | Ereturn ->
+	  Format.fprintf ff "ret"
+   | Estack_free (n, l) ->
+	  Format.fprintf ff "stack_free %d" n
   );
   Format.pp_print_tab ff ();
   Format.fprintf ff "\t--> ";
@@ -295,11 +304,11 @@ let print_func ff f =
   Format.fprintf ff "@]@."
 
 let print_program ff p =
-  Format.fprintf ff "Main function: %s@\n" p.prog_main;
   print_list ff print_func "@\n" p.prog_functions;
   Format.fprintf ff "Class descriptors:@\n";
-  print_list ff (fun ff (class_name, data) ->
-				 Format.fprintf ff "%s@[<v 2>@\n" class_name;
+  print_list ff (fun ff (class_name, parent_name, data) ->
+				 Format.fprintf ff "%s (inherits %s)@[<v 2>@\n"
+								class_name parent_name;
 				 print_list ff (fun ff -> Format.fprintf ff "%s") "@\n" data;
 				 Format.fprintf ff "@]")
 			 "@\n@\n" p.prog_class_descrs;

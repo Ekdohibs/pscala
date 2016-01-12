@@ -5,7 +5,7 @@ open Interference
 type color = Spilled of int | Reg of Register.reg
 module Cset = Set.Make(struct type t = color let compare = compare end)
 type coloring = color Rmap.t
-
+					  
 let remove g v =
   Rmap.map (fun arc ->
     { prefs = Rset.remove v arc.prefs;
@@ -179,5 +179,3 @@ let find_coloring g =
 			 | Spilled n -> max m (n + 1)
 			 | _ -> m) c 0 in
   c, nlocals
-
-			

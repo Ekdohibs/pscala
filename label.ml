@@ -12,3 +12,5 @@ let compare = compare
 
 let print ff l =
   Format.fprintf ff "L%d" l
+
+let to_string l = "L" ^ (string_of_int l)

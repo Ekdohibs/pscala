@@ -141,6 +141,8 @@ type 'size operand
 
 val imm: int -> [>] operand
   (** opérande immédiate $i *)
+val imm32: int32 -> [>] operand
+  (** opérande immédiate $i *)					
 val imms: string -> [>] operand
   (** opérande immédiate $i, avec i comme une chaîne *)
 val reg: 'size register -> 'size operand
@@ -244,21 +246,22 @@ val xorq: [`Q] operand -> [`Q] operand -> text
 
 (** {2 Décalages } *)
 
+(* La valeur du décalage doit être immédiate, ou alors %cl *)
 val shlb: [`B] operand -> [`B] operand -> text
-val shlw: [`W] operand -> [`W] operand -> text
-val shll: [`L] operand -> [`L] operand -> text
-val shlq: [`Q] operand -> [`Q] operand -> text
+val shlw: [`B] operand -> [`W] operand -> text
+val shll: [`B] operand -> [`L] operand -> text
+val shlq: [`B] operand -> [`Q] operand -> text
   (** note: shl est la même chose que sal *)
 
 val shrb: [`B] operand -> [`B] operand -> text
-val shrw: [`W] operand -> [`W] operand -> text
-val shrl: [`L] operand -> [`L] operand -> text
-val shrq: [`Q] operand -> [`Q] operand -> text
+val shrw: [`B] operand -> [`W] operand -> text
+val shrl: [`B] operand -> [`L] operand -> text
+val shrq: [`B] operand -> [`Q] operand -> text
 
 val sarb: [`B] operand -> [`B] operand -> text
-val sarw: [`W] operand -> [`W] operand -> text
-val sarl: [`L] operand -> [`L] operand -> text
-val sarq: [`Q] operand -> [`Q] operand -> text
+val sarw: [`B] operand -> [`W] operand -> text
+val sarl: [`B] operand -> [`L] operand -> text
+val sarq: [`B] operand -> [`Q] operand -> text
 
 (** {2 Sauts } *)
 

@@ -42,6 +42,7 @@ let instr colors framesize = function
 	   Eint64 (n, r, l)
   | Ertl_ast.Estring (s, r, l) ->
 	 Estring (s, get_color colors r, l)
+  | Ertl_ast.Eunit (r, l) -> Egoto l
   | Ertl_ast.Egetfield (r1, n, r2, l) ->
 	 let r2, l = write colors r2 l in
 	 read1 colors r1 (fun r1 -> Egetfield (r1, n, r2, l))
@@ -62,6 +63,7 @@ let instr colors framesize = function
 		   Ebinary (op, o1, Coloring.Reg r2, generate (
 		   Ebinary (Xmov, Coloring.Reg r2, o2, l))))
 	  | _, o1, o2 -> Ebinary (op, o1, o2, l))
+  | Ertl_ast.Ecqto l -> Ecqto l
   | Ertl_ast.Egoto l -> Egoto l
   | Ertl_ast.Eubranch (u, r, l1, l2) ->
 	 Eubranch (u, get_color colors r, l1, l2)
@@ -106,9 +108,13 @@ let instr colors framesize = function
   | Ertl_ast.Ereturn -> Ereturn
 
 let func f =
+  Format.printf "live begin@.";
   let lv = Liveliness.analyse f.Ertl_ast.fun_body in
+  Format.printf "live done@.";
   let ig = Interference.make lv in
+    Format.printf "inter done (%d vertices)@." (Rmap.cardinal ig);
   let coloring, nlocals = Coloring.find_coloring ig in
+    Format.printf "color done@.";
   graph := LMap.empty;
   LMap.iter (fun l i ->
 			 let i = instr coloring nlocals i in
@@ -120,7 +126,6 @@ let func f =
 
 let program p = 
  { prog_functions = List.map func p.Ertl_ast.prog_functions;
-   prog_main = p.Ertl_ast.prog_main;
    prog_class_descrs = p.Ertl_ast.prog_class_descrs
  }
 
@@ -130,7 +135,7 @@ let next_labels = function
   | Egetfield (_, _, _, l) | Esetfield (_, _, _, l)
   | Ecall (_, l) | Ecallmethod (_, l)
   | Esetheader (_, _, l) | Eunary (_, _, l)
-  | Ebinary (_, _, _, l) | Egoto l
+  | Ebinary (_, _, _, l) | Ecqto l | Egoto l
   | Euset (_, _, _, l) | Ebset (_, _, _, _, l)
   | Epush_param (_, l) -> [l]
   | Eubranch (_, _, l1, l2) | Ebbranch (_, _, _, l1, l2) -> [l1; l2]
@@ -156,35 +161,36 @@ let print_instr ff i =
    | Esetfield (r1, n, r2, l) ->
 	  Format.fprintf ff "%a[%d] <- %a"
 					 print_reg r1 n print_reg r2
-  | Ecall (f, l) ->
-	 Format.fprintf ff "call %s" f
-  | Ecallmethod (offset, l) ->
-	 Format.fprintf ff "callm %d" offset
-  | Esetheader(s, r, l) ->
-	 Format.fprintf ff "set_header %a %s" print_reg r s
-  | Eunary (op, r, l) ->
-	 Format.fprintf ff "%a %a" print_xunary op print_color r
-  | Ebinary (op, r1, r2, l) ->
-	 Format.fprintf ff "%a %a %a" print_xbinary op
+   | Ecall (f, l) ->
+	  Format.fprintf ff "call %s" f
+   | Ecallmethod (offset, l) ->
+	  Format.fprintf ff "callm %d" offset
+   | Esetheader(s, r, l) ->
+	  Format.fprintf ff "set_header %a %s" print_reg r s
+   | Eunary (op, r, l) ->
+	  Format.fprintf ff "%a %a" print_xunary op print_color r
+   | Ebinary (op, r1, r2, l) ->
+	  Format.fprintf ff "%a %a %a" print_xbinary op
+					 print_color r1 print_color r2
+   | Ecqto l -> Format.fprintf ff "cqto"
+   | Egoto l -> ()
+   | Eubranch (b, r, l1, l2) ->
+	  Format.fprintf ff "j%a" print_ubranch
+					 (b, (fun ff -> print_color ff r))
+   | Ebbranch (b, r1, r2, l1, l2) ->
+	  Format.fprintf ff "j%a %a %a" print_bbranch b
 					print_color r1 print_color r2
-  | Egoto l -> ()
-  | Eubranch (b, r, l1, l2) ->
-	 Format.fprintf ff "j%a" print_ubranch
-				   (b, (fun ff -> print_color ff r))
-  | Ebbranch (b, r1, r2, l1, l2) ->
-	 Format.fprintf ff "j%a %a %a" print_bbranch b
-					print_color r1 print_color r2
-  | Euset (b, r1, r2, l) ->
-	 Format.fprintf ff "set%a %a" print_ubranch
-					(b, (fun ff -> print_color ff r1))
-					print_color r2
-  | Ebset (b, r1, r2, r3, l) ->
-	 Format.fprintf ff "set%a %a %a %a" print_bbranch b
-				    print_color r1 print_color r2 print_color r3
-  | Epush_param (r, l) ->
-	 Format.fprintf ff "push %a" print_color r
-  | Ereturn ->
-	 Format.fprintf ff "ret"
+   | Euset (b, r1, r2, l) ->
+	  Format.fprintf ff "set%a %a" print_ubranch
+					 (b, (fun ff -> print_color ff r1))
+					 print_color r2
+   | Ebset (b, r1, r2, r3, l) ->
+	  Format.fprintf ff "set%a %a %a %a" print_bbranch b
+				     print_color r1 print_color r2 print_color r3
+   | Epush_param (r, l) ->
+	  Format.fprintf ff "push %a" print_color r
+   | Ereturn ->
+	  Format.fprintf ff "ret"
   );
   Format.pp_print_tab ff ();
   Format.fprintf ff "\t--> ";
@@ -208,11 +214,11 @@ let print_func ff f =
   Format.fprintf ff "@]@."
 
 let print_program ff p =
-  Format.fprintf ff "Main function: %s@\n" p.prog_main;
   print_list ff print_func "@\n" p.prog_functions;
   Format.fprintf ff "Class descriptors:@\n";
-  print_list ff (fun ff (class_name, data) ->
-				 Format.fprintf ff "%s@[<v 2>@\n" class_name;
+  print_list ff (fun ff (class_name, parent_name, data) ->
+				 Format.fprintf ff "%s (inherits %s)@[<v 2>@\n"
+								class_name parent_name;
 				 print_list ff (fun ff -> Format.fprintf ff "%s") "@\n" data;
 				 Format.fprintf ff "@]")
 			 "@\n@\n" p.prog_class_descrs;

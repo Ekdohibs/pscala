@@ -84,10 +84,13 @@ let compute_reprs l_classes =
 	base_reprs l_classes
 
 let class_descrs reprs =
-  Smap.bindings (Smap.mapi (fun name repr ->
+  List.map (fun (name, repr) ->
+	 name, repr.r_parent,
 	 List.map (fun mname ->
-			   create_method_name name mname) repr.r_lmethods)
-						   reprs)
+			   create_method_name (
+				 snd (Smap.find mname repr.r_methods)
+				 ) mname) repr.r_lmethods)
+		   (Smap.bindings reprs)
 
 module Imap = Map.Make(struct type t = int let compare = compare end)
 type expr_env = {
@@ -96,36 +99,60 @@ type expr_env = {
   env_locals : int Imap.t;
 }
 
-let make_uminus e =
-  Eunary (Xneg, e)
+let make_uminus = function
+  | Eint n -> Eint (Int64.neg n)
+  | Eunary (Xneg, e) -> e
+  | e -> Eunary (Xneg, e)
 
-let make_unot e =
-  Eunary (Xnot, e)
+let make_unot = function
+  | Eint n -> Eint (Int64.logxor n 1L)
+  | Eunary (Xnot, e) -> e
+  | e -> Eunary (Xnot, e)
 
-let make_bplus e1 e2 =
+let rec make_bplus e1 e2 =
   match (e1, e2) with
+  | Eint n, Eint m -> Eint (Int64.add n m)
+  | Eint n, Eunary (Xaddi m, e) | Eunary (Xaddi m, e), Eint n ->
+	  make_bplus e (Eint (Int64.add n m))
   | Eint 0L, e | e, Eint 0L -> e
   | Eint n, e | e, Eint n -> Eunary (Xaddi n, e)
+  | Eunary (Xaddi n, e1), e2 | e1, Eunary (Xaddi n, e2) ->
+	 make_bplus (Eint n) (make_bplus e1 e2)
+  | e1, Eunary (Xneg, e2) -> make_bminus e1 e2
+  | Eunary (Xneg, e1), e2 -> make_brminus e1 e2
   | _ -> Ebinary (Xadd, e1, e2)
 
-let make_bminus e1 e2 =
+and make_bminus e1 e2 =
   match (e1, e2) with
-  | e, Eint 0L -> e
+  | e, Eint n -> make_bplus e (Eint (Int64.neg n))
   | Eint 0L, e -> Eunary (Xneg, e)
-  | e, Eint n -> Eunary (Xaddi (Int64.neg n), e)
+  | e1, Eunary (Xneg, e2) -> make_bplus e1 e2
+  | Eunary (Xneg, e1), e2 -> make_uminus (make_bplus e1 e2)
   | _ -> Ebinary (Xsub, e1, e2)
 
+and make_brminus e1 e2 =
+  match (e1, e2) with
+  | Eint n, e -> make_bplus e (Eint (Int64.neg n))
+  | e, Eint 0L -> Eunary (Xneg, e)
+  | Eunary (Xneg, e1), e2 -> make_bplus e1 e2
+  | e1, Eunary (Xneg, e2) -> make_uminus (make_bplus e1 e2)
+  | _ -> Ebinary (Xrsub, e1, e2)
+				 
 let make_btimes e1 e2 =
   match (e1, e2) with
+  | Eint n, Eint m -> Eint (Int64.mul n m)
   | Eint 1L, e | e, Eint 1L -> e
+  | Eint (-1L), e | e, Eint (-1L) -> make_uminus e
   | Eint n, e | e, Eint n -> Eunary (Xmuli n, e)
   | _ -> Ebinary (Xmul, e1, e2)
 
 let make_bdiv e1 e2 =
-  Ebinary (Xdiv, e1, e2)
+  match (e1, e2) with
+  | _ -> Ebinary (Xdiv, e1, e2)
 
 let make_bmod e1 e2 =
-  Ebinary (Xmod, e1, e2)
+  match (e1, e2) with
+  | _ -> Ebinary (Xmod, e1, e2)
 		  
 let make_beq e1 e2 =
   match (e1, e2) with
@@ -327,12 +354,12 @@ let program prog =
 		   Esetlocal (0, Eallocbloc ("Main", repr_main.r_num_fields + 1));
 		   Ecall (create_constr_name "Main", [Egetlocal 0]);
 		   Ecall (create_method_name "Main" "main",
-				 [Egetlocal 0; Eint 0L])
+				 [Egetlocal 0; Eint 0L]);
+		   Eint 0L
 		 ]);
-	fun_has_value = false;
+	fun_has_value = true;
   } in
   { prog_functions = main_func :: prog_functions;
-	prog_main = "main";
 	prog_class_descrs = c_descrs
   }
 	

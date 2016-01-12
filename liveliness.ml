@@ -10,6 +10,7 @@ let rec take n l =
 let def_use = function
   | Eint (_, r, _) -> [r], []
   | Estring (_, r, _) -> [r], []
+  | Eunit (r, _) -> [r], []
   | Egetfield (r1, _, r2, _) -> [r2], [r1]
   | Esetfield (r1, _, r2, _) -> [], [r1; r2]
   | Ecall (_, n, _) | Ecallmethod (_, n, _) ->
@@ -21,7 +22,9 @@ let def_use = function
   | Eunary (_, r, _) -> [r], [r]
   | Ebinary (Xdiv, r1, r2, _) ->
 	 assert (r2 = Register.rax);
-	 [Register.rax; Register.rdx], [r1; Register.rax]
+	 [Register.rax; Register.rdx], [r1; Register.rax; Register.rdx]
+  | Ecqto _ ->
+	 [Register.rdx], [Register.rax]
   | Ebinary (Xmov, r1, r2, _) -> [r2], [r1]
   | Ebinary (_, r1, r2, _) -> [r2], [r1; r2]
   | Egoto _ | Ealloc_frame _ | Edelete_frame _ -> [], []
@@ -114,11 +117,11 @@ let print_func ff f =
   Format.fprintf ff "@]@."
 
 let print_program ff p =
-  Format.fprintf ff "Main function: %s@\n" p.prog_main;
   print_list ff print_func "@\n" p.prog_functions;
   Format.fprintf ff "Class descriptors:@\n";
-  print_list ff (fun ff (class_name, data) ->
-				 Format.fprintf ff "%s@[<v 2>@\n" class_name;
+  print_list ff (fun ff (class_name, parent_name, data) ->
+				 Format.fprintf ff "%s (inherits %s)@[<v 2>@\n"
+								class_name parent_name;
 				 print_list ff (fun ff -> Format.fprintf ff "%s") "@\n" data;
 				 Format.fprintf ff "@]")
 			 "@\n@\n" p.prog_class_descrs;

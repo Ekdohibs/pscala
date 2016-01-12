@@ -65,7 +65,12 @@ let decorated = Debug.protect begin fun () ->
 end
 let () = if !type_only then exit 0
 let asm = Debug.protect begin fun () ->
-  Code_production.produce_code decorated
+  (* Code_production.produce_code decorated *)
+  let is = Is.program decorated in
+  let rtl = Rtl.program is in
+  let ertl = Ertl.program rtl in
+  let ltl = Ltl.program ertl in
+  Lin.program ltl
 end
 let asm_filename = (Filename.chop_suffix file ".scala") ^ ".s"
 let () = X86_64.print_in_file asm_filename asm
