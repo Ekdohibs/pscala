@@ -107,14 +107,16 @@ let instr colors framesize = function
 			   Coloring.Reg Register.Rsp, l)
   | Ertl_ast.Ereturn -> Ereturn
 
+module Rset = Set.Make(Register)						  
 let func f =
-  Format.printf "live begin@.";
   let lv = Liveliness.analyse f.Ertl_ast.fun_body in
-  Format.printf "live done@.";
   let ig = Interference.make lv in
-    Format.printf "inter done (%d vertices)@." (Rmap.cardinal ig);
+  Debug.debug "inter done (%d vertices, %d prefs, %d interf)@."
+   (Rmap.cardinal ig)
+   (Rmap.fold (fun _ arc s -> s + Rset.cardinal arc.Interference.prefs) ig 0)
+   (Rmap.fold (fun _ arc s -> s + Rset.cardinal arc.Interference.interf) ig 0)
+  ;
   let coloring, nlocals = Coloring.find_coloring ig in
-    Format.printf "color done@.";
   graph := LMap.empty;
   LMap.iter (fun l i ->
 			 let i = instr coloring nlocals i in

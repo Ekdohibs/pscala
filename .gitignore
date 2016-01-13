@@ -2,6 +2,8 @@
 *.swp
 *.cmi
 *.cmo
+*.cmx
+*.o
 *.annot
 menhir_parse.automaton
 mehnir_parse.conflicts

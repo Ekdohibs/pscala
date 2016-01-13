@@ -173,9 +173,9 @@ and instr g l = function
         On utilise un register caller_saved qui n'est pas un paramètre
         pour l'appel, ici r10 *)
 	 emit l ((movq (ind rdi) (reg r10)) ++
-			 (*(call_star (ind ~ofs:(word_size * (i + 1)) r10)) *)
-			 (movq (ind ~ofs:(word_size * (i + 1)) r10) (reg r10)) ++
-			 (call_star (reg r10))
+			 (call_star (ind ~ofs:(word_size * (i + 1)) r10))
+			 (*(movq (ind ~ofs:(word_size * (i + 1)) r10) (reg r10)) ++
+			 (call_star (reg r10))*)
 			);
 	 lin g l1
   | Ltl_ast.Esetheader (s, r, l1) ->
