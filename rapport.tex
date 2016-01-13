@@ -36,141 +36,40 @@
 %\newcommand{\code}[1]{#1}
 \newcommand{\code}[1]{{\fontfamily{pcr}\selectfont #1}}
 
-\title{Rapport - Compilation : Petit Scala, première partie}
-\author{Nathanaël Courant, Noémie Cartier}
+\title{Un compilateur optimisant pour Petit Scala \\ Rapport}
+\author{Nathanaël Courant}
 
 \begin{document}
 
 \maketitle
 
+\section{Utilisation}
+
+Les options reconnues par le compilateur sont les suivantes~:
+\begin{itemize}
+\item{\code{--parse-only}~: Arrêt du compilateur après l'analyse
+    lexicale et syntaxique du fichier source,}
+\item{\code{--type-only}~: Arrêt du compilateur après le typage du
+    fichier source,}
+\item{\code{-G}~: Pour le déboguage du compilateur, affiche des
+    informations de debug~; de plus, ne rattrape pas une erreur
+    interne mais la laisse passer (pour obtenir un backtrace
+    en cas d'erreur). \textit{Attention}~: Cette option peut générer
+    une sortie conséquente sur de gros fichiers.}
+\end{itemize}
+
 \section{Choix techniques}
 
-\subsection{Analyseur lexical}
+\subsection{Langages intermédiaires}
 
-Nous avons choisi, pour des raisons de performance et de minimisation
-du nombre d'états de l'automate de l'analyseur lexical, de stocker les
-mots-clef et le lexème correspondant dans une table de hachage. En
-revanche, comme il est possible de placer plusieurs opérateurs à la
-suite sans séparateur (mais que tous les opérateurs ne sont pas
-réduits à un signe) nous avons réalisé leur reconnaissance en écrivant
-un cas par opérateur.
-
-\textit{Modification -- 17/12/2015}~:
-Nous avons corrigé un bug dans la localisation des erreurs~: en effet,
-l'analyseur lexical ne mettait pas à jour les numéros de ligne au
-cours d'un commentaire s'étendant sur plusieurs lignes.
-
-\subsection{Analyseur syntaxique}
-
-
-Nous avons beaucoup utilisé la bibliothèque de Menhir, 
-en particulier les fonctions 
-\code{option}, \code{delimited}, \code{list} et \code{separated\_{}list}. 
-La fonction \code{ioption} nous a permis de résoudre un conflit.
-
-Les constantes valant précisément $-2^{31}$ nous ont posé des
-problèmes~: en effet, elles ne peuvent pas être reconnues
-immédiatement par l'analyseur lexical, puisque celui-ci n'est pas
-capable d'identifier si le symbole \code{-} devant la constante est
-celui de la constante, ou est un opérateur binaire. De plus, nous
-n'avons pas réussi à écrire une grammaire sans conflits
-qui permettrait de détecter ces constantes négatives lors de l'analyse
-syntaxique. Ce que nous avons dont fait a été de rajouter une phase de
-traitement après l'analyse syntaxique, où les \code{-} unaires
-précédant un entier sont transformés en constantes entières négatives,
-et où les débordements de constantes sont détectés.
-
-\subsection{Typeur}
-
-Dans la définition d'un type (visible au début du fichier
-\code{type\_{}ast.ml}), nous avons créé trois constructeurs différents
-afin de mieux gérer la portée des différentes variables de type.
-
-De la même façon, nous avons choisi d'utiliser une structure de type
-\code{Map} au lieu de \code{Hashtbl} pour avoir des environnements
-persistants.
-
-Nous avons géré les paramètres de constructeur de classe comme des
-champs privés, auquels on ne peut accéder que si l'expression de
-l'objet est \code{this}. Ainsi, si \code{a} est un paramètre du
-constructeur de la classe T, les expressions \code{a} et \code{this.a}
-sont autorisées, tandis que \code{(new~T(0)).a} et
-\code{\{();~this\}.a} ne le sont pas, comme en Scala. Une autre
-possibilité aurait été d'accepter les accès de ce type uniquement
-lorsque le type de l'expression de laquelle on essaie d'accéder au
-paramètre du constructeur est exactement celle de la classe (et non
-pas un sous-type de celle-ci), ce qui aurait préservé la sûreté du
-typage, mais nous avons choisi de faire comme Scala pour ce point-là.
-
-Dans le calcul de la variance, nous avons dû prendre un double
-paramètre en permanence~: la classe (ou le type, selon les arguments
-nécessaires pour chaque fonction) créée par le typeur et celle fournie
-par l'analyseur syntaxique, les premiers portant les informations de
-typage qui a déjà été fait (portée des variables de type, type des
-champs lorsque celui-ci n'est pas précisé en particulier), et les
-deuxième portant la localisation à afficher en cas d'erreur.
-
-Nous décorons également l'arbre de syntaxe abstraite au cours du
-typage, en ajoutant à chaque sous-expression son type. Au cours de
-cette phase, on effectue également les opérations suivantes~:
+\section{Problèmes connus}
 \begin{itemize}
-\item{détection de la portée des variables~: une variable peut soit
-    être une variable locale, soit un paramètre de la méthode appelée,
-  soit un paramètre du constructeur de la classe à l'intérieur de
-  laquelle elle apparaît~;}
-\item{détection de la méthode appelée~: lors d'un appel de méthode, on
-    identifie de quelle classe cette méthode provient (i.e. dans
-    quelle classe cette méthode a été définie en premier, en remontant
-    dans la hiérarchie des classes tant que cette méthode existe),
-    afin de pouvoir compiler ces appels ultérieurement.}
+\item{L'allocation de registres peut prendre longtemps sur de grosses
+    entrées~: ainsi, le compilateur met entre $10$ et $15$s à
+    s'éxécuter sur \code{quine.scala}. En effet, l'algorithme
+    d'allocation de registres est implémenté de manière assez naïve,
+    ce qui cause de très nombreuses vérifications du critère de George.}
 \end{itemize}
 
-\textit{Modification -- 08/12/2015}~:
-Nous avons remarqué que l'instanciation de paramètres de types, ou de
-classes définies par défaut peuvent conduire à une perte de la sûreté
-du système de typage~: en effet, cela permet en particulier une
-création d'objets de type \code{Nothing}. On ne peut pas non plus
-créer d'instance d'un paramètre de type, même si celui-ci est déclaré
-comme héritant d'une autre classe, puisque les arguments du
-constructeur peuvent différer (et même changer de nombre) entre une
-classe et une classe dont elle hérite~! Par conséquent, nous avons
-interdit toute instanciation d'un paramètre de type d'une classe,
-ainsi que des classes de base (pour celles-ci, l'instantiation devant
-soit être interdite, soit est inutile car correspond à créer des
-objets de type \code{Unit}, \code{Int}, \code{String} ou
-\code{Boolean}, pour lesquels il existe déjà d'autres manières de les
-créer, soit de type \code{Any}, \code{AnyRef} ou \code{AnyVal}, qui
-n'ont aucune utilité, car il n'est rien possible de faire avec ces
-objets).
-
-\textit{Modification -- 17/12/2015}~:
-Dans la continuité de la modification précédente, il ne doit pas non
-plus être possible d'étendre un paramètre de type, ceci permettant en
-effet de créer des types mal formés.
-
-\section{Tests supplémentaires}
-
-Nous nous aperçus sommes que, bien que notre compilateur passe déjà
-tous les tests fournis pour le projet, il ne se comportait pas comme
-il aurait dû dans certains cas particuliers. Nous avons donc créé
-quelques nouveaux tests (ceux dont le nom est de la forme
-\code{extra-*.scala}).
-
-Ces tests supplémentaires vérifient ces cas particuliers~:
-\begin{itemize}
-\item{vérification du fait que la constante $-2^{31}$ est acceptée~;}
-\item{vérification de la variance dans un champ d'une classe dont le
-    type n'est pas précisé dans le programme~;}
-\item{vérification de la bonne gestion des variables de type lorsque
-    leur nom est commun à un paramètre de méthode et à un paramètre de
-  classe, ou à une classe définie précédemment~;}
-\item{vérification de la bonne gestion de variables de type nommées
-    comme une classe standard (\code{Int}, \code{Unit}, ...).}
-\item{\textit{Modification -- 08/12/2015}~: vérification qu'il est
-    impossible d'instancier des paramètres de types ou des classes de
-    base.}
-\item{\textit{Modification -- 17/12/2015}~: vérification qu'il est
-    impossible d'étendre un paramètre de type.}
-\end{itemize}
 
 \end{document}
