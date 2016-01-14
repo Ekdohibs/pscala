@@ -323,7 +323,7 @@ let class_functions c_name cls reprs =
 	fun_params = num_args + 1;
 	fun_body = Ebloc (
 	   List.mapi (fun i _ ->
-		 Esetfield (Egetlocal 0, i, Egetlocal (i + 1))
+		 Esetfield (Egetlocal 0, i + repr.r_cp_offset, Egetlocal (i + 1))
 	   ) cls.Type_ast.c_params @
 	   parent_call @
 	   set_fields   
