@@ -148,6 +148,15 @@ and expr destr e ex locals destl = match e with
 		in
 		expr destr e ex locals (
 		generate (Eunary (o, destr, destl)))
+  | Is_ast.Ebinary (Is_ast.Xadd | Is_ast.Xmul as op, e1, e2) ->
+	 let o = match op with
+	   | Is_ast.Xadd -> Xcadd | Is_ast.Xmul -> Xcmul
+	   | _ -> assert false in
+	 let r1 = Register.fresh () in
+	 let r2 = Register.fresh () in
+	 expr r1 e1 ex locals (
+	 expr r2 e2 ex locals (
+	 generate (Ebinary3 (o, r1, r2, destr, destl))))
   | Is_ast.Ebinary (op, e1, e2) ->
 	 if is_btest op then
 	   	let r1 = Register.fresh () in
@@ -168,7 +177,7 @@ and expr destr e ex locals destl = match e with
 		let r2 = Register.fresh () in
 		expr r1 e1 ex locals (
 		expr r2 e2 ex locals (
-		if op = Is_ast.Xrsub then
+        if op = Is_ast.Xrsub then
 		  move r2 destr (generate (Ebinary (o, r1, destr, destl)))
 		else
 		  move r1 destr (generate (Ebinary (o, r2, destr, destl)))
@@ -214,6 +223,10 @@ let print_xbinary ff b =
 	| Xdiv -> "div" | Xmod -> "mod" | Xsl -> "sl"
 	| Xasr -> "asr" | Xlsr -> "lsr" | Xmov -> "mov")
 
+let print_xcbinary ff b =
+  Format.fprintf ff "%s" (match b with
+	| Xcadd -> "add" | Xcmul -> "imul")
+				 
 let print_ubranch ff (b, f) = match b with
   | Ujeqi n -> Format.fprintf ff "eqi %t $%Ld" f n
   | Ujnei n -> Format.fprintf ff "nei %t $%Ld" f n
@@ -234,7 +247,7 @@ let next_labels = function
   | Egetfield (_, _, _, l) | Esetfield (_, _, _, l)
   | Ecall (_, _, _, l) | Ecallmethod (_, _, _, l)
   | Eallocbloc (_, _, _, l) | Eunary (_, _, l)
-  | Ebinary (_, _, _, l) | Eprintint (_, l)
+  | Ebinary (_, _, _, l) | Ebinary3 (_, _, _, _, l) | Eprintint (_, l)
   | Eprintstring (_, l) | Egoto l
   | Euset (_, _, _, l) | Ebset (_, _, _, _, l) -> [l]
   | Eubranch (_, _, l1, l2) | Ebbranch (_, _, _, l1, l2) -> [l1; l2]
@@ -269,6 +282,9 @@ let print_instr ff i =
    | Ebinary (op, r1, r2, l) ->
 	  Format.fprintf ff "%a %a %a" print_xbinary op
 					 Register.print r1 Register.print r2
+   | Ebinary3 (op, r1, r2, r3, l) ->
+	  Format.fprintf ff "%a %a %a %a" print_xcbinary op
+				 Register.print r1 Register.print r2 Register.print r3
    | Eprintint (r, l) ->
 	  Format.fprintf ff "print_int %a" Register.print r
    | Eprintstring (r, l) ->

@@ -150,6 +150,10 @@ let instr = function
 	 Ebinary (Xlsr, Register.rcx, r2, l))))
   | Rtl_ast.Ebinary (Rtl_ast.Xmov, r1, r2, l) ->
 	 Ebinary (Xmov, r1, r2, l)
+  | Rtl_ast.Ebinary3 (Rtl_ast.Xcadd, r1, r2, r3, l) ->
+	 Ebinary3 (Xcadd, r1, r2, r3, l)
+  | Rtl_ast.Ebinary3 (Rtl_ast.Xcmul, r1, r2, r3, l) ->
+	 Ebinary3 (Xcmul, r1, r2, r3, l)
   | Rtl_ast.Eprintint (r, l) ->
 	 Ebinary (Xmov, r, Register.rsi, (generate (
 	 Estring ("%d", Register.rdi, generate (
@@ -221,13 +225,18 @@ let next_labels = function
   | Egetfield (_, _, _, l) | Esetfield (_, _, _, l)
   | Ecall (_, _, l) | Ecallmethod (_, _, l)
   | Esetheader (_, _, l) | Eunary (_, _, l)
-  | Ebinary (_, _, _, l) | Ecqto l | Egoto l
+  | Ebinary (_, _, _, l) | Ebinary3 (_, _, _, _, l)
+  | Ecqto l | Egoto l
   | Euset (_, _, _, l) | Ebset (_, _, _, _, l)
   | Ealloc_frame l | Edelete_frame l
   | Eget_param (_, _, l) | Epush_param (_, l)
   | Estack_free (_, l) -> [l]
   | Eubranch (_, _, l1, l2) | Ebbranch (_, _, _, l1, l2) -> [l1; l2]
   | Ereturn -> []
+
+let print_xcbinary ff b =
+  Format.fprintf ff "%s" (match b with
+	| Xcadd -> "add" | Xcmul -> "imul")
 				 
 let print_instr ff i =
   (match i with
@@ -254,6 +263,9 @@ let print_instr ff i =
    | Ebinary (op, r1, r2, l) ->
 	  Format.fprintf ff "%a %a %a" print_xbinary op
 					 Register.print r1 Register.print r2
+   | Ebinary3 (op, r1, r2, r3, l) ->
+	  Format.fprintf ff "%a %a %a %a" print_xcbinary op
+			 Register.print r1 Register.print r2 Register.print r3
    | Ecqto l -> Format.fprintf ff "cqto"
    | Egoto l -> ()
    | Eubranch (b, r, l1, l2) ->

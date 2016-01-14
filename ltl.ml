@@ -32,7 +32,7 @@ let read1 = read_tmp tmp1
 let read2 colors r1 r2 f =
   read_tmp tmp1 colors r1 (fun r1 -> read_tmp tmp2 colors r2 (f r1))
 			 
-let instr colors framesize = function
+let rec instr colors framesize = function
   | Ertl_ast.Eint (n, r, l) ->
 	 let c = get_color colors r in
 	 if Ertl.is32op n then
@@ -63,6 +63,19 @@ let instr colors framesize = function
 		   Ebinary (op, o1, Coloring.Reg r2, generate (
 		   Ebinary (Xmov, Coloring.Reg r2, o2, l))))
 	  | _, o1, o2 -> Ebinary (op, o1, o2, l))
+  | Ertl_ast.Ebinary3 (op, r1, r2, r3, l) ->
+	 let o = match op with
+		 Xcadd -> Xadd | Xcmul -> Xmul in
+	 let c1 = get_color colors r1 in
+	 let c2 = get_color colors r2 in
+	 let c3 = get_color colors r3 in
+	 if c1 = c3 then
+	   instr colors framesize (Ertl_ast.Ebinary (o, r2, r3, l))
+	 else if c2 = c3 then
+	   instr colors framesize (Ertl_ast.Ebinary (o, r1, r3, l))
+	 else
+	   instr colors framesize (Ertl_ast.Ebinary (Xmov, r1, r3, generate (
+	   instr colors framesize (Ertl_ast.Ebinary (o, r2, r3, l)))))
   | Ertl_ast.Ecqto l -> Ecqto l
   | Ertl_ast.Egoto l -> Egoto l
   | Ertl_ast.Eubranch (u, r, l1, l2) ->
@@ -127,7 +140,8 @@ let func f =
   }
 
 let program p = 
- { prog_functions = List.map func p.Ertl_ast.prog_functions;
+  Debug.debug "%a@." Ertl.print_program p;
+  { prog_functions = List.map func p.Ertl_ast.prog_functions;
    prog_class_descrs = p.Ertl_ast.prog_class_descrs
  }
 

@@ -25,7 +25,11 @@ let make infos =
 			 match instr with
 			 | Ebinary (Xmov, r1, r2, _) ->
 				Rset.iter (fun r -> if r <> r1 then add_interf r r2) live_out;
-				add_pref r1 r2				
+				add_pref r1 r2
+			 | Ebinary3 (_, r1, r2, r3, _) ->
+				Rset.iter (fun r -> if r <> r1 then add_interf r r3) live_out;
+				add_pref r1 r3;
+				add_pref r2 r3
 			 | _ ->
 				Rset.iter (fun r1 ->
                   Rset.iter (add_interf r1) live_out) def

@@ -61,6 +61,70 @@ Les options reconnues par le compilateur sont les suivantes~:
 \section{Choix techniques}
 
 \subsection{Langages intermédiaires}
+Les langages intermédiaires utilisés sont très proches de ceux du
+cours (et de CompCert), étant les suivants~:
+\begin{itemize}
+\item{\code{Is}~: Sélection d'instructions, \textit{constant folding},}
+\item{\code{Rtl}~: Graphe de flot de contrôle,}
+\item{\code{Ertl}~: Explicitation des conventions d'appel,}
+\item{\code{Ltl}~: Allocation de registres.}
+\end{itemize} \par
+On arrive enfin à la production de code assembleur, avec linéarisation
+du code \code{Ltl}.
+
+\subsection{Sélection d'instructions}
+On utilise le constructeur \code{Ebinary3} jusqu'à la phase
+d'allocation de registres, pour représenter les opérations binaires
+commutatives comme si elles provenaient de code à trois adresses. En
+effet, on peut ensuite ajouter deux arêtes de préférence, pour
+permettre à l'allocation de registres de tenter de minimiser le nombre
+d'opérations \code{mov} inutiles qui proviennent du code à deux
+adresses. Cependant, cela n'est pas suffisant pour obtenir le résultat
+souhaité sur \code{fact\_{}rec.scala}, mais je conjecture qu'une bonne
+heuristique pour choisir quels sommets il faut fusionner permettrait
+de résoudre ce problème.
+
+\subsection{Le \textit{garbage collector} (pas encore implémenté)}
+Le \textit{garbage collector} n'est pas encore implémenté, cependant,
+voici des idées pour celui-ci.\\ \par
+Les problèmes rencontrés lorsque l'on veut ajouter un GC sont les
+suivants~:
+\begin{itemize}
+\item{Il faut examiner le contenu des registres et de la pile pour
+    trouver les racines,}
+\item{Il faut pouvoir discerner un entier d'un pointeur.}
+\end{itemize} \par
+L'idée pour cela est la suivante~: on va positionner un label dans le
+code après chaque appel de fonction, avec des données dans le
+\code{.data} associant ce label à la configuration de la \textit{stack
+  frame} de la fonction à ce moment précis, et précisant ce que
+contient la pile et les registres. Plus précisément, chaque registre
+ou emplacement de pile peut soit contenir un registre de la fonction
+qui a appelé celle-ci, soit avoir un type (entier ou pointeur) connu à
+la compilation. Il reste un problème~: les fonctions et classes
+polymorphes. En effet, pour celles-ci, on ne peut pas connaître à
+l'avance le type de certains registres ou emplacements de pile. Il y a
+pour cela deux solutions~: la première consiste en remplacer chaque
+classe et fonction polymorphe par plusieurs versions, une pour chaque
+configuration possible de type des arguments (ce serait quelque chose
+s'approchant donc de la défonctorisation). Cependant, elle a un
+défaut~: elle peut causer une augmentation exponentielle de la taille
+du code. Elle peut toutefois être plus efficace que la deuxième
+solution pour un faible nombre de paramètres de types ($\leqslant 2$ à
+mon avis). La deuxième solution, plus universelle, est de consacrer un
+registre (ou emplacement de pile, voire plus si la fonction a plus de
+64 paramètres de type...) pour donner les arguments de type de la
+fonction, et de manière similaire, consacrer un mot dans les objets
+polymorphes pour préciser leur type. Pour appeller une fonction
+polymorphe, on lui passe donc le type de ses arguments, et de l'objet
+\code{this} dans un registre. Il reste encore une subtilité~:
+\textit{a priori}, un objet de type \code{Any} peut contenir soit un
+entier, soit un pointeur... Cependant, comme Petit Scala n'autorise
+pas de \textit{downcast}, un tel objet ne pourra jamais être utilisé
+pour son contenu par la suite, et il n'est pas non plus possible de
+tester son égalité avec un autre objet (\code{eq} demandant des objets
+de type plus petit que \code{AnyRef}). Ainsi, il est correct de
+collecter ces objets, si ils ne sont utilisés nulle part ailleurs.
 
 \section{Problèmes connus}
 \begin{itemize}

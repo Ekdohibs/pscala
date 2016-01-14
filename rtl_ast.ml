@@ -9,6 +9,9 @@ type xbinary =
   | Xadd | Xsub | Xmul | Xdiv | Xmod
   | Xsl | Xasr | Xlsr | Xmov
 
+type xcbinary =
+  | Xcadd | Xcmul
+						  
 type ubranch =
   | Ujeqi of int64 | Ujnei of int64 | Ujlti of int64
   | Ujlei of int64 | Ujgti of int64 | Ujgei of int64
@@ -33,6 +36,7 @@ type instr =
   | Eallocbloc of string * int * register * label
   | Eunary of xunary * register * label
   | Ebinary of xbinary * register * register * label
+  | Ebinary3 of xcbinary * register * register * register * label
   | Eprintint of register * label
   | Eprintstring of register * label
   | Egoto of label

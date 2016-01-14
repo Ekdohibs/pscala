@@ -7,7 +7,7 @@ compiler_errors=0
 
 echo "Tests positifs (fichiers dans tests/exec/)"
 
-for f in tests/exec/*.scala; do
+for f in tests/exec/*.scala tests/exec_add/good/*.scala; do
     max=`expr $max + 1`;
     echo $f
     nm=`dirname $f`/`basename $f .scala`

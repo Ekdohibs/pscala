@@ -26,6 +26,7 @@ let def_use = function
   | Ecqto _ ->
 	 [Register.rdx], [Register.rax]
   | Ebinary (Xmov, r1, r2, _) -> [r2], [r1]
+  | Ebinary3 (_, r1, r2, r3, _) -> [r3], [r1; r2]
   | Ebinary (_, r1, r2, _) -> [r2], [r1; r2]
   | Egoto _ | Ealloc_frame _ | Edelete_frame _ -> [], []
   | Eubranch (_, r, _, _) -> [], [r]

@@ -10,6 +10,9 @@ type xbinary =
   | Xadd | Xsub | Xmul | Xdiv
   | Xsl | Xasr | Xlsr | Xmov
 
+type xcbinary =
+  | Xcadd | Xcmul
+
 type ubranch =
   | Ujeqi of int32 | Ujnei of int32 | Ujlti of int32
   | Ujlei of int32 | Ujgti of int32 | Ujgei of int32
@@ -69,6 +72,7 @@ type instr =
   | Esetheader of string * register * label
   | Eunary of xunary * register * label
   | Ebinary of xbinary * register * register * label
+  | Ebinary3 of xcbinary * register * register * register * label
   | Ecqto of label
   | Egoto of label
   | Eubranch of ubranch * register * label * label
