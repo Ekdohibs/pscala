@@ -1,15 +1,5 @@
 open Lexing
 open Format
-	   
-let usage = "usage: pscala [options] file.scala"
-let parse_only = ref false
-let type_only = ref false
-let spec =
-  [
-    "--parse-only", Arg.Set parse_only, "  stop after parsing";
-	"--type-only", Arg.Set type_only, "  stop after typing";
-	"-G", Arg.Set Debug.enable_debug, "  show debug messages";
-  ]
 
 let file =
   let file = ref None in
@@ -18,8 +8,9 @@ let file =
       raise (Arg.Bad "Input file should have a .scala extension");
     file := Some s
   in
-  Arg.parse spec set_file usage;
-  match !file with Some f -> f | None -> Arg.usage spec usage; exit 1
+  Arg.parse Options.spec set_file Options.usage;
+  match !file with Some f -> f | None ->
+	 Arg.usage Options.spec Options.usage; exit 1
 	   
 let escape_string ff s =
   for i = 0 to String.length s - 1 do
@@ -51,7 +42,7 @@ let prog = Debug.protect begin fun () ->
 	   eprintf "Syntax error@."; exit 1
 	 end
 end
-let () = if !parse_only then exit 0
+let () = if !Options.parse_only then exit 0
 let decorated = Debug.protect begin fun () ->
   try
 	Typing.type_program prog
@@ -63,7 +54,7 @@ let decorated = Debug.protect begin fun () ->
 	   exit 1
 	 end
 end
-let () = if !type_only then exit 0
+let () = if !Options.type_only then exit 0
 let asm = Debug.protect begin fun () ->
   (* Code_production.produce_code decorated *)
   let is = Is.program decorated in

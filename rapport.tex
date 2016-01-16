@@ -56,6 +56,10 @@ Les options reconnues par le compilateur sont les suivantes~:
     interne mais la laisse passer (pour obtenir un backtrace
     en cas d'erreur). \textit{Attention}~: Cette option peut générer
     une sortie conséquente sur de gros fichiers.}
+\item{\code{--undefined-null-deref}~: Si cette option est passée au
+    compilateur, le résultat de l'appel d'une fonction ou de l'accès à
+    un champ du pointeur \code{null} est considéré comme indéfini~;
+    cela permet au compilateur de faire certaines optimisations.}
 \end{itemize}
 
 \section{Choix techniques}
@@ -64,7 +68,10 @@ Les options reconnues par le compilateur sont les suivantes~:
 Les langages intermédiaires utilisés sont très proches de ceux du
 cours (et de CompCert), étant les suivants~:
 \begin{itemize}
-\item{\code{Is}~: Sélection d'instructions, \textit{constant folding},}
+\item{\code{Is}~: Sélection d'instructions, \textit{constant folding},
+  identification d'appels de méthodes qui peuvent être remplacés par
+  des appels explicites (ceci est possible car on compile le programme
+  entier, et requiert l'option \code{--undefined-null-deref}),}
 \item{\code{Rtl}~: Graphe de flot de contrôle,}
 \item{\code{Ertl}~: Explicitation des conventions d'appel,}
 \item{\code{Ltl}~: Allocation de registres.}

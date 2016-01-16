@@ -1,6 +1,11 @@
 #!/bin/bash
 # Copied shamelessly from mini-python
 
+COMP=$1
+if [ -z "$COMP" ]; then
+  COMP=./pscala
+fi
+
 score=0
 compiler_errors=0
 max=0
@@ -11,7 +16,7 @@ for f in tests/syntax/good/*.scala tests/typing/good/*.scala tests/exec/*.scala 
     max=`expr $max + 1`;
     echo $f
     rm -f out
-    ./pscala $f --parse-only > out
+    $COMP $f --parse-only > out
     result=$?
     if (( $result == 0 )) ; then
         score=`expr $score + 1`;
@@ -30,7 +35,7 @@ for f in tests/syntax/bad/*.scala; do
     max=`expr $max + 1`;
     echo $f
     rm -f out
-    ./pscala $f --parse-only > out 2>&1
+    $COMP $f --parse-only > out 2>&1
     result=$?
     if (( $result == 1 )) ; then
         score=`expr $score + 1`;

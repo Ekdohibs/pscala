@@ -29,11 +29,17 @@ let create_constr_name class_name = "C_" ^ class_name
 
 module Smap = Map.Make(String)
 
+type method_repr = {
+  m_id : int;
+  m_class : string;
+  mutable m_has_override : bool;
+}
+					  
 type class_repr = {
   r_num_fields : int;
   r_num_methods : int;
   r_cp_offset : int;
-  r_methods : (int * string) Smap.t;
+  r_methods : method_repr Smap.t;
   r_lmethods : string list;
   r_vars : int Smap.t;
   r_parent : string
@@ -64,10 +70,15 @@ let add_repr c_name cls c_reprs =
 	   parent_repr.r_vars) cls.c_vars in
   let (nm, lm, m) = Smap.fold (fun name _ (nm, lm, m) ->
 	  try
-		let (i, _) = Smap.find name m in
-		(nm, lm, Smap.add name (i, c_name) m)
+		let mm = Smap.find name m in
+		mm.m_has_override <- true;
+		(nm, lm, Smap.add name { m_id = mm.m_id;
+								 m_class = c_name;
+								 m_has_override = false } m)
 	  with Not_found ->
-		(nm + 1, name :: lm, Smap.add name (nm, c_name) m))
+		(nm + 1, name :: lm, Smap.add name { m_id = nm;
+											 m_class = c_name;
+											 m_has_override = false } m))
 	 cls.c_methods
 	 (parent_repr.r_num_methods, [], parent_repr.r_methods) in
   let repr = {
@@ -88,7 +99,7 @@ let class_descrs reprs =
 	 name, repr.r_parent,
 	 List.map (fun mname ->
 			   create_method_name (
-				 snd (Smap.find mname repr.r_methods)
+				 (Smap.find mname repr.r_methods).m_class
 				 ) mname) repr.r_lmethods)
 		   (Smap.bindings reprs)
 
@@ -99,6 +110,52 @@ type expr_env = {
   env_locals : int Imap.t;
 }
 
+
+let rec make_bloc b =
+  let rec make_bloc_list = function
+	| [] -> []
+	| e :: t ->
+	   let tt = make_bloc_list t in
+	   match e with
+	   | Eunit -> tt
+	   | Ebloc b -> (make_bloc_list b) @ tt
+	   | _ -> e :: tt
+  in
+  let rec make_bloc_ignore = function
+	| [] -> []
+	| [e] -> [e]
+	| e :: t -> make_bloc_list [ignore_result e;
+								Ebloc (make_bloc_ignore t)]
+  in
+  match make_bloc_ignore b with
+   | [] -> Eunit
+   | bb -> Ebloc bb 
+
+and ignore_result e = match e with
+  | Eint _ -> Eunit
+  | Estring _ -> Eunit
+  | Eunit -> Eunit
+  | Egetlocal _ -> Eunit
+  | Esetlocal _ -> e
+  | Egetfield (e, _) -> ignore_result e
+  | Esetfield _ -> e
+  | Ecall _ -> Ebloc [e; Eunit]
+  | Ecallmethod _ -> Ebloc [e; Eunit]
+  | Eallocbloc _ -> Eunit
+  | Eunary (_, e) -> ignore_result e
+  | Ebinary (_, e1, e2) -> Ebloc [ignore_result e1;
+								  ignore_result e2;
+								  Eunit]
+  | Eand (e1, e2) -> Eif (e1, ignore_result e2, Eunit)
+  | Eor (e1, e2) -> Eif (e1, Eunit, ignore_result e2)
+  | Eif (e1, e2, e3) ->
+	 Eif (e1, ignore_result e2, ignore_result e3)
+  | Ewhile _ -> e
+  | Ereturn _ -> e
+  | Eprintint _ -> e
+  | Eprintstring _ -> e
+  | Ebloc b -> make_bloc (List.map ignore_result b)
+				  
 let make_uminus = function
   | Eint n -> Eint (Int64.neg n)
   | Eunary (Xneg, e) -> e
@@ -141,6 +198,7 @@ and make_brminus e1 e2 =
 let make_btimes e1 e2 =
   match (e1, e2) with
   | Eint n, Eint m -> Eint (Int64.mul n m)
+  | Eint 0L, e | e, Eint 0L -> make_bloc [ignore_result e; Eint 0L]
   | Eint 1L, e | e, Eint 1L -> e
   | Eint (-1L), e | e, Eint (-1L) -> make_uminus e
   | Eint n, e | e, Eint n -> Eunary (Xmuli n, e)
@@ -193,7 +251,7 @@ let make_band e1 e2 =
 
 let make_bor e1 e2 =
   Eor (e1, e2)
-				  
+	
 let rec expr env e =
   match e.Type_ast.t_expr with
   | Type_ast.Tint i -> env, Eint (Int64.of_string i)
@@ -248,10 +306,12 @@ let rec expr env e =
 	   ]
   | Type_ast.Tcall (class_name, method_name, args) ->
 	 let repr = Smap.find class_name env.env_reprs in
-	 let method_offset = fst (Smap.find method_name repr.r_methods) in
-	 (* TODO: si il n'y a qu'une méthode possible, remplacer par Ecall *)
+	 let meth = Smap.find method_name repr.r_methods in
 	 let nenv, np = List.fold_map expr env args in
-	 nenv, Ecallmethod (method_offset, np)
+	 nenv, if meth.m_has_override || not !Options.undefined_null_deref then
+			 Ecallmethod (meth.m_id, np)
+		   else
+			 Ecall (create_method_name meth.m_class method_name, np)
   | Type_ast.Tbloc b ->
 	 if b = [] then env, Eunit else
 	   let nenv, nb =
@@ -268,7 +328,7 @@ let rec expr env e =
 		   | Type_ast.TVexpr e ->
 			  expr env e
 					   ) env b in
-	   { nenv with env_locals = env.env_locals }, Ebloc nb
+	   { nenv with env_locals = env.env_locals }, make_bloc nb
   | Type_ast.Tif (e1, e2, e3) ->
 	 let nenv1, ne1 = expr env e1 in
 	 let nenv2, ne2 = expr nenv1 e2 in
@@ -350,7 +410,7 @@ let program prog =
 	fun_params = 0;
 	fun_body =
 	  (let repr_main = Smap.find "Main" reprs in
-	   Ebloc [
+	   make_bloc [
 		   Esetlocal (0, Eallocbloc ("Main", repr_main.r_num_fields + 1));
 		   Ecall (create_constr_name "Main", [Egetlocal 0]);
 		   Ecall (create_method_name "Main" "main",

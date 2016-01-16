@@ -1,6 +1,11 @@
 #!/bin/bash
 # Copied shamelessly from mini-python
 
+COMP=$1
+if [ -z "$COMP" ]; then
+  COMP=./pscala
+fi
+
 score=0
 max=0
 compiler_errors=0
@@ -12,7 +17,7 @@ for f in tests/exec/*.scala tests/exec_add/good/*.scala; do
     echo $f
     nm=`dirname $f`/`basename $f .scala`
     rm -f out
-    ./pscala $f > out
+    $COMP $f > out
     result=$?
     if (( $result == 0 )) ; then
         gcc $nm.s -o $nm
@@ -51,7 +56,7 @@ for f in tests/exec-fail/*.scala; do
     echo $f
     nm=`dirname $f`/`basename $f .scala`
     rm -f out
-    ./pscala $f > out
+    $COMP $f > out
     result=$?
     if (( $result == 0 )) ; then
         gcc $nm.s -o $nm
