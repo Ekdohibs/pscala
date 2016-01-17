@@ -132,6 +132,13 @@ pour son contenu par la suite, et il n'est pas non plus possible de
 tester son égalité avec un autre objet (\code{eq} demandant des objets
 de type plus petit que \code{AnyRef}). Ainsi, il est correct de
 collecter ces objets, si ils ne sont utilisés nulle part ailleurs.
+\\ \par
+Actuellement, l'implémentation du GC se limite à transformer les
+informations de typage en informations de typage pour le GC (i.e, si
+une expression est un entier, un pointeur où un paramètre de type)
+dans \code{Is}. Il faudrait encore continuer à passer cette
+information dans les langages suivants, produire les descripteurs de
+\textit{stack frames}, et écrire le GC lui-même.
 
 \section{Problèmes connus}
 \begin{itemize}
@@ -140,6 +147,11 @@ collecter ces objets, si ils ne sont utilisés nulle part ailleurs.
     s'éxécuter sur \code{quine.scala}. En effet, l'algorithme
     d'allocation de registres est implémenté de manière assez naïve,
     ce qui cause de très nombreuses vérifications du critère de George.}
+\item{Une suite d'instructions comme \code{mov \#{}1 \#{}2},~
+    \code{mov \#{}1 \#{}3}, puis une utilisation des registres
+    \code{\#{}2} et \code{\#{}3} cause les registres \code{\#{}2} et
+    \code{\#{}3} comme étant déclarés comme interférant, et par
+    conséquent les empêche d'obtenir le même registre.}
 \end{itemize}
 
 

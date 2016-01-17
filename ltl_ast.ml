@@ -5,7 +5,7 @@ type register = Register.reg
 type label = Label.t
 module LMap = Map.Make(Label)
 module Rmap = Map.Make(Register)
-				  
+					  
 type instr =
   | Eint of int32 * color * label
   | Eint64 of int64 * register * label

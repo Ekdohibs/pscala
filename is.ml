@@ -389,7 +389,11 @@ let rec expr env e =
 		 | _ -> ()) t_params meth.m_tparams;
 	   let nenv, np = List.fold_map expr env args in
 	   nenv,
-	   if meth.m_has_override || not !Options.undefined_null_deref then
+	   if (meth.m_has_override || not !Options.undefined_null_deref)
+		   && not ((List.hd args).Type_ast.t_expr = Type_ast.Tthis
+				    && method_name = env.env_current_method)
+			   (* Appel récursif à la méthode elle-même *)
+	       then
 		 Ecallmethod (meth.m_id, Array.to_list tp, np)
 	   else
 		 Ecall (create_method_name meth.m_class method_name,
