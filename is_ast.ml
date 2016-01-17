@@ -14,8 +14,16 @@ type xbinary =
   | Xeq | Xne | Xlt | Xle | Xgt | Xge
   | Xadd | Xsub | Xrsub | Xmul | Xdiv | Xmod
   | Xsl | Xasr | Xlsr
-					  
-type expr =
+
+type expr_type =
+  | Tint
+  | Tpointer
+  | TMethodParam of int
+  | TClassParam of int
+				   
+type expr = { is_expr : expr_desc; is_type : expr_type }
+
+and expr_desc = 
   | Eint of int64
   | Estring of string
   | Eunit
@@ -23,11 +31,11 @@ type expr =
   | Esetlocal of int * expr
   | Egetfield of expr * int
   | Esetfield of expr * int * expr
-  | Ecall of string * expr list
+  | Ecall of string * expr_type list * expr list
     (* offset, args *) 
-  | Ecallmethod of int * expr list
+  | Ecallmethod of int * expr_type list * expr list
     (* header, size in words (header included) *)
-  | Eallocbloc of string * int
+  | Eallocbloc of string * expr_type list * int
   | Eunary of xunary * expr
   | Ebinary of xbinary * expr * expr
   | Eand of expr * expr
@@ -42,6 +50,7 @@ type expr =
 type fundef = {
   fun_name : string;
   fun_params : int;
+  fun_tparams : int;
   fun_body : expr;
   fun_has_value : bool;
 }

@@ -380,7 +380,9 @@ let rec expr_type env e =
 	   ) a_typed effective_types;
 	 { t_expr_type = subst m.t_method_type;
 	   t_expr = Tcall (class_basename env t1.t_type_name,
-					   name, et1 :: (List.map fst a_typed))
+					   name, et1 :: (List.map fst a_typed),
+					   arg_types
+					  )
 	 }
   | Enew (type_name, type_args, args) ->
 	 let created_type = { type_name = type_name;

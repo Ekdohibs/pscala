@@ -45,7 +45,7 @@ let btest_to_bbranch = function
   | _ -> assert false
 
 				
-let rec condition e truel falsel ex locals = match e with
+let rec condition e truel falsel ex locals = match e.Is_ast.is_expr with
   | Is_ast.Eand (e1, e2) ->
 	 condition e1 (condition e2 truel falsel ex locals) falsel ex locals
   | Is_ast.Eor (e1, e2) ->
@@ -62,11 +62,11 @@ let rec condition e truel falsel ex locals = match e with
 	 expr r1 e1 ex locals (
 	 expr r2 e2 ex locals (
 	 generate (Ebbranch (btest_to_bbranch op, r1, r2, truel, falsel))))
-   | e -> let r = Register.fresh () in
+   | _ -> let r = Register.fresh () in
 		 expr r e ex locals (
 		 generate (Eubranch (Ujz, r, falsel, truel)))
   
-and expr destr e ex locals destl = match e with
+and expr destr e ex locals destl = match e.Is_ast.is_expr with
   | Is_ast.Eint n -> generate (Eint (n, destr, destl))
   | Is_ast.Estring s -> generate (Estring (s, destr, destl))
   | Is_ast.Eunit -> generate (Eunit (destr, destl))
@@ -88,17 +88,17 @@ and expr destr e ex locals destl = match e with
 	 expr r2 e2 ex locals (
 	 generate (Esetfield (r1, n, r2,
 	 generate (Eunit (destr, destl))))))
-  | Is_ast.Ecall (f, l) ->
+  | Is_ast.Ecall (f, _, l) ->
 	 let regs = List.map (fun _ -> Register.fresh ()) l in
 	 List.fold_right (fun (e, r) l -> expr r e ex locals l)
 					 (List.combine l regs)
 					 (generate (Ecall (destr, f, regs, destl)))
-  | Is_ast.Ecallmethod (offset, l) ->
+  | Is_ast.Ecallmethod (offset, _, l) ->
 	 let regs = List.map (fun _ -> Register.fresh ()) l in
 	 List.fold_right (fun (e, r) l -> expr r e ex locals l)
 					 (List.combine l regs)
 					 (generate (Ecallmethod (destr, offset, regs, destl)))
-  | Is_ast.Eallocbloc (s, i) -> generate (Eallocbloc (s, i, destr, destl))
+  | Is_ast.Eallocbloc (s, _, i) -> generate (Eallocbloc (s, i, destr, destl))
   | Is_ast.Ereturn e ->
 	 let (retr, retl) = ex in
 	 expr retr e ex locals retl

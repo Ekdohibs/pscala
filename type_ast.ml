@@ -71,8 +71,8 @@ and t_expr_desc =
   | Taccess of t_access
   | Tassign of t_access * t_expr
   (* Le nom de la classe de base + de la méthode +
-       les arguments (y compris l'objet) *)
-  | Tcall of p_ident * p_ident * t_expr list
+       les arguments (y compris l'objet) + les paramètres de type*)
+  | Tcall of p_ident * p_ident * t_expr list * t_type list
   | Tnew of t_type * t_expr list
   | Tunary of unary_op * t_expr
   | Tbinary of binary_op * t_expr * t_expr
@@ -100,21 +100,14 @@ and t_bloc = t_var_expr list
 
 
 type t_method = {
-  (* TODO: on a vraiment besoin de garder les contraintes ?
-       -> détermination de la méthode appelée devrait se faire
-          dans le typage, donc pas besoin *)
   m_param_types : (p_ident * t_param_type_constraint) list;
-  (* TODO: est-ce utile de garder le nom ? *)
   m_params : (p_ident * t_type) list;
   m_type : t_type;
   m_body : t_expr;
 }
 
 type t_class = {
-  (* idem methode *)
   c_type_params : (p_ident * t_param_type_constraint) list;
-  (* Par contre, là il faut garder le nom, puisque c'est
-     comme un champ... *)
   c_params : (p_ident * t_type) list;
   c_vars : (bool * t_expr * p_ident) list;
   c_methods : t_method Smap.t;

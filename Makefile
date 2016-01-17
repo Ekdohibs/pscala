@@ -1,5 +1,5 @@
 S=cmx
-OBJS=common.$S debug.$S options.$S menhir_parse.$S parser.$S lexer.$S type_ast.$S typing.$S x86_64.$S register.$S label.$S is_ast.$S is.$S rtl_ast.$S rtl.$S ertl_ast.$S ertl.$S liveliness.$S interference.$S coloring.$S ltl_ast.$S ltl.$S lin.$S code_production.$S main.$S
+OBJS=common.$S debug.$S options.$S menhir_parse.$S parser.$S lexer.$S type_ast.$S typing.$S x86_64.$S register.$S label.$S is_ast.$S is.$S rtl_ast.$S rtl.$S ertl_ast.$S ertl.$S liveliness.$S interference.$S coloring.$S ltl_ast.$S ltl.$S lin.$S main.$S
 GENERATED = lexer.ml menhir_parse.ml menhir_parse.mli
 FLAGS=-annot -g
 MENHIR_FLAGS=-v --infer
